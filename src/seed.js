@@ -172,6 +172,7 @@ export const DEFAULTS = {
       map: { naver: 'https://naver.me/FMcN6M5m', kakao: '' },
       brochure: 'https://drive.google.com/file/d/1ybjDrcr3eKSA06TZHOu2EQWPJMvTxFsd/view',
       video: 'R3XViXgbSlc',
+      drive_videos: ['1UwwadvzQJ80keF5d1Wc2uwLfff-xhctI', '134KbpICbDT8foWHz_h1ITVm_t_BKvXCO'],
       instagram: '',
     },
     {
