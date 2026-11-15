@@ -1,0 +1,14 @@
+{
+  "name": "mezzanine",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "메자닌 서울 홈페이지 · 대관 문의/견적/예약 플랫폼 (Cloudflare Workers + D1)",
+  "scripts": {
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy"
+  },
+  "devDependencies": {
+    "wrangler": "^4.0.0"
+  }
+}

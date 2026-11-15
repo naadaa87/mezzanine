@@ -1,0 +1,10 @@
+/admin/*
+  X-Frame-Options: DENY
+  X-Content-Type-Options: nosniff
+  Referrer-Policy: same-origin
+  X-Robots-Tag: noindex
+  Cache-Control: no-cache
+
+/assets/*
+  X-Content-Type-Options: nosniff
+  Cache-Control: public, max-age=3600
