@@ -31,7 +31,7 @@ wrangler.jsonc  Cloudflare 설정 (D1 연결 포함)
 
 ## 배포
 
-1. Cloudflare에서 D1 데이터베이스(`mezzanine`)를 만들고, `wrangler.jsonc`의 `database_id`에 해당 ID를 넣습니다.
+1. Cloudflare에서 D1 데이터베이스(`mezzanine-db`)를 만들고, `wrangler.jsonc`의 `database_id`에 해당 ID를 넣습니다.
 2. Cloudflare **Workers & Pages → Create → Import a repository**에서 이 저장소를 연결합니다. 배포 명령은 기본값 `npx wrangler deploy`입니다.
 3. 이후에는 `main` 브랜치에 푸시할 때마다 자동으로 배포됩니다.
 

@@ -10,8 +10,8 @@
   "d1_databases": [
     {
       "binding": "DB",
-      "database_name": "mezzanine",
-      "database_id": "00000000-0000-0000-0000-000000000000"
+      "database_name": "mezzanine-db",
+      "database_id": "b1401fea-ad2a-4111-89df-f736bba2e0c1"
     }
   ],
   "observability": {
