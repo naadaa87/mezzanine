@@ -125,10 +125,10 @@
 
   // ── 사진 ────────────────────────────────────────────────────
   // 올리기 전에 브라우저에서 긴 변 1920px, WebP로 줄여서 저장합니다.
-  async function compress(file) {
+  async function compress(file, maxSide = 1920, maxBytes = 1_500_000) {
     const bmp = await createImageBitmap(file, { imageOrientation: 'from-image' }).catch(() => createImageBitmap(file));
     let q = 0.82;
-    let max = 1920;
+    let max = maxSide;
     for (let n = 0; n < 5; n++) {
       const scale = Math.min(1, max / Math.max(bmp.width, bmp.height));
       const w = Math.round(bmp.width * scale);
@@ -139,7 +139,7 @@
       c.getContext('2d').drawImage(bmp, 0, 0, w, h);
       let blob = await new Promise((r) => c.toBlob(r, 'image/webp', q));
       if (!blob || blob.type !== 'image/webp') blob = await new Promise((r) => c.toBlob(r, 'image/jpeg', q));
-      if (blob.size <= 1_500_000) return { blob, w, h };
+      if (blob.size <= maxBytes) return { blob, w, h };
       q -= 0.12;
       max = Math.round(max * 0.85);
     }
@@ -148,15 +148,22 @@
 
   views.photos = async (main, parts) => {
     const owners = [
-      ...S.content.venues.map((v) => ({ key: `venue:${v.slug}`, label: `지점 · ${v.name}` })),
-      ...S.content.cases.map((c) => ({ key: `case:${c.id}`, label: `사례 · ${c.title}` })),
+      { key: 'site:hero', label: '홈 · 대표 이미지(맨 위 큰 사진)', hint: '홈 맨 위에 크게 보이는 사진입니다. 여러 장이면 7초마다 바뀝니다. 가로로 긴 사진이 잘 맞습니다.' },
+      { key: 'site:use', label: '홈 · 이렇게 쓰입니다(활용 예시)', hint: '홈의 "이렇게 쓰입니다"에 보이는 정사각형 사진 3장입니다. 실제 행사가 아니라면 종류를 "연출 이미지"로 두세요.' },
+      { key: 'site:og', label: '공유 미리보기 이미지', hint: '카카오톡·SNS에 주소를 공유할 때 보이는 첫 번째 사진입니다.' },
+      ...S.content.venues.map((v) => ({ key: `venue:${v.slug}`, label: `공간 · ${v.name}`, hint: '첫 번째 사진이 공간 페이지 맨 위 큰 사진과 목록 대표 사진으로 쓰입니다.' })),
+      ...S.content.cases.map((c) => ({ key: `case:${c.id}`, label: `사례 · ${c.title}`, hint: '첫 번째 사진이 사례 대표 사진으로 쓰입니다.' })),
     ];
+    const KIND = { photo: '실제 사진', brand: '브랜드 이미지(보정)', staged: '연출 이미지' };
     const cur = decodeURIComponent(parts.join('/') || owners[0]?.key || '');
     const [type, ...rest] = cur.split(':');
     const ownerId = rest.join(':');
-    main.innerHTML = `<div class="head"><div><h1>사진</h1><p>지점과 대관 사례에 보여 줄 사진을 올립니다. 첫 번째 사진이 대표 사진으로 쓰입니다.</p></div>
+    const curOwner = owners.find((o) => o.key === cur);
+    main.innerHTML = `<div class="head"><div><h1>사진</h1><p>홈, 공간, 대관 사례에 보여 줄 사진을 관리합니다. 실제 사진이 아닌 이미지는 종류를 바꿔 두면 사이트에 "브랜드 이미지", "연출 이미지"로 표시됩니다.</p></div>
         <div class="head-actions"><button class="btn btn-point" type="button" id="p-drive">구글드라이브에서 가져오기</button></div></div>
-      <div class="bar"><select id="p-owner" aria-label="사진을 넣을 곳">${owners.map((o) => `<option value="${esc(o.key)}"${o.key === cur ? ' selected' : ''}>${esc(o.label)}</option>`).join('')}</select></div>
+      <div class="bar"><select id="p-owner" aria-label="사진을 넣을 곳" style="max-width:420px">${owners.map((o) => `<option value="${esc(o.key)}"${o.key === cur ? ' selected' : ''}>${esc(o.label)}</option>`).join('')}</select></div>
+      ${curOwner?.hint ? `<p class="muted small" style="margin:-4px 0 14px">${esc(curOwner.hint)}</p>` : ''}
+      <p class="note" id="p-wait" hidden></p>
       <div class="drop" id="p-drop"><b>사진을 여기에 끌어다 놓거나 눌러서 선택하세요</b>여러 장을 한 번에 올릴 수 있습니다. 큰 사진은 자동으로 줄여서 저장합니다.
         <input type="file" id="p-file" accept="image/*" multiple hidden><p class="progress" id="p-prog" hidden></p></div>
       <div class="photos" id="p-grid"></div>`;
@@ -164,11 +171,24 @@
     let items = [];
     const load = async () => {
       items = (await api(`/media?owner_type=${encodeURIComponent(type)}&owner_id=${encodeURIComponent(ownerId)}`)).items;
-      grid.innerHTML = items.length ? items.map((p, i) => `<div class="photo" data-id="${p.id}"><img src="/media/${p.id}" alt="" loading="lazy">
+      const waiting = items.filter((p) => !p.size);
+      const failed = waiting.filter((p) => p.fetch_state === -1);
+      const wait = main.querySelector('#p-wait');
+      wait.hidden = !waiting.length;
+      wait.innerHTML = waiting.length ? `드라이브에서 아직 받지 못한 사진이 ${waiting.length}장 있습니다.${failed.length ? ' 드라이브 폴더의 공유 설정이 "링크가 있는 모든 사용자"인지 확인해 주세요.' : ' 15분 안에 자동으로 받아 옵니다.'} 저장 전인 사진은 사이트에 보이지 않습니다. <button type="button" class="btn btn-sm" id="p-fetch">지금 받기</button>` : '';
+      grid.innerHTML = items.length ? items.map((p, i) => `<div class="photo" data-id="${p.id}">${p.size ? `<img src="/media/${p.id}?s=sm" alt="" loading="lazy">` : `<div style="aspect-ratio:4/3;display:grid;place-items:center;background:var(--mist);color:var(--sub);font-size:.84rem">${p.fetch_state === -1 ? '받기 실패' : '받는 중'}</div>`}
         <div class="photo-body"><input type="text" value="${esc(p.caption || '')}" placeholder="사진 설명(선택)" maxlength="120" aria-label="사진 설명">
+          <select data-kind aria-label="사진 종류" style="min-height:32px;padding:4px 8px;font-size:.84rem;margin-top:6px">${Object.entries(KIND).map(([k, l]) => `<option value="${k}"${(p.kind || 'photo') === k ? ' selected' : ''}>${l}</option>`).join('')}</select>
           <div class="photo-act"><button type="button" class="btn btn-sm" data-mv="-1" aria-label="앞으로"${i === 0 ? ' disabled' : ''}>←</button><button type="button" class="btn btn-sm" data-mv="1" aria-label="뒤로"${i === items.length - 1 ? ' disabled' : ''}>→</button>
-            <span class="muted small" style="margin:auto">${i === 0 ? '대표' : ''} ${p.size ? `${Math.round(p.size / 1024)}KB` : (p.src || '').startsWith('drive:') ? '드라이브' : ''}</span><button type="button" class="btn btn-sm btn-danger" data-rm>삭제</button></div></div></div>`).join('')
+            <span class="muted small" style="margin:auto">${i === 0 ? '대표' : ''} ${p.size ? `${Math.round(p.size / 1024)}KB` : ''}</span><button type="button" class="btn btn-sm btn-danger" data-rm>삭제</button></div></div></div>`).join('')
         : '<p class="muted">아직 올린 사진이 없습니다.</p>';
+      const fb = main.querySelector('#p-fetch');
+      if (fb) fb.addEventListener('click', async () => {
+        fb.disabled = true;
+        fb.textContent = '받는 중입니다';
+        try { const r = await api('/media/fetch', { method: 'POST' }); toast(r.ok ? `${r.ok}장을 받았습니다` : '받지 못했습니다. 공유 설정을 확인해 주세요.', !r.ok); } catch (ex) { toast(ex.message, true); }
+        await load();
+      });
     };
     main.querySelector('#p-owner').addEventListener('change', (e) => { location.hash = `#/photos/${e.target.value}`; });
     main.querySelector('#p-drive').addEventListener('click', () => driveImport(type, ownerId, owners.find((o) => o.key === cur)?.label || '', load));
@@ -184,7 +204,13 @@
         prog.textContent = `${list.length}장 중 ${n + 1}번째 사진을 올리는 중입니다`;
         try {
           const { blob, w, h } = await compress(list[n]);
-          await api(`/media?owner_type=${encodeURIComponent(type)}&owner_id=${encodeURIComponent(ownerId)}&w=${w}&h=${h}`, { method: 'PUT', raw: { body: blob, type: blob.type } });
+          const kind = type === 'site' && ownerId === 'use' ? 'staged' : 'photo';
+          const r = await api(`/media?owner_type=${encodeURIComponent(type)}&owner_id=${encodeURIComponent(ownerId)}&w=${w}&h=${h}&kind=${kind}`, { method: 'PUT', raw: { body: blob, type: blob.type } });
+          // 목록용 작은 사진도 함께 만들어 둡니다
+          try {
+            const t = await compress(list[n], 720, 380_000);
+            await api(`/media/${r.id}/thumb`, { method: 'PUT', raw: { body: t.blob, type: t.blob.type } });
+          } catch {}
           ok++;
         } catch (ex) {
           toast(`${list[n].name}: ${ex.message}`, true);
@@ -220,6 +246,10 @@
     });
     grid.addEventListener('change', async (e) => {
       const card = e.target.closest('.photo');
+      if (card && e.target.matches('[data-kind]')) {
+        try { await api(`/media/${card.dataset.id}`, { method: 'PATCH', body: { kind: e.target.value } }); toast('사진 종류를 바꿨습니다'); } catch (ex) { toast(ex.message, true); }
+        return;
+      }
       if (!card || e.target.tagName !== 'INPUT') return;
       try { await api(`/media/${card.dataset.id}`, { method: 'PATCH', body: { caption: e.target.value } }); toast('설명을 저장했습니다'); } catch (ex) { toast(ex.message, true); }
     });
@@ -234,6 +264,7 @@
       body: `<p class="muted" style="margin-bottom:12px">공유 설정이 "링크가 있는 모든 사용자"인 폴더의 링크를 붙여 넣으세요. 고른 사진은 <b>${esc(label)}</b>에 추가되고, 서버가 사진을 받아 사이트에 따로 저장합니다.</p>
         <p class="err" hidden></p>
         <div class="bar"><input type="url" id="d-url" placeholder="https://drive.google.com/drive/folders/..." style="flex:1;min-width:240px" aria-label="드라이브 폴더 링크"><button type="button" class="btn" id="d-load">폴더 열기</button></div>
+        <div class="bar"><label class="small muted" for="d-kind">가져올 사진의 종류</label><select id="d-kind" style="width:auto"><option value="photo">실제 사진</option><option value="brand">브랜드 이미지(보정)</option><option value="staged">연출 이미지</option></select></div>
         <div id="d-list"></div>`,
       foot: '<span class="muted small left" id="d-count"></span><button type="button" class="btn" data-cancel>닫기</button><button type="button" class="btn btn-point" id="d-go" disabled>가져오기</button>',
     });
@@ -288,12 +319,12 @@
       go.disabled = true;
       err.hidden = true;
       try {
-        const r = await api('/media/drive', { method: 'POST', body: { owner_type: type, owner_id: ownerId, images, videos } });
+        const r = await api('/media/drive', { method: 'POST', body: { owner_type: type, owner_id: ownerId, images, videos, kind: m.$('#d-kind').value } });
         // 서버가 드라이브에서 사진을 받아 저장하도록 한 장씩 열어 둡니다
         let ok = 0;
         for (let n = 0; n < r.ids.length; n++) {
           go.textContent = `사진 저장 중 ${n + 1}/${r.ids.length}`;
-          const res = await fetch(`/media/${r.ids[n]}`).catch(() => null);
+          const res = await fetch(`/media/${r.ids[n]}?s=sm`).catch(() => null);
           if (res && res.ok) ok++;
         }
         if (videos.length) await reloadContent();
@@ -423,9 +454,33 @@
         <form class="card" id="pf"><h2>내 비밀번호 변경</h2><p class="err" hidden></p>
           <div class="g2"><label class="f"><span>현재 비밀번호</span><input type="password" name="current" autocomplete="current-password"></label><label class="f"><span>새 비밀번호 <small>8자 이상</small></span><input type="password" name="next" autocomplete="new-password"></label></div>
           <button class="btn" type="submit">비밀번호 변경</button></form>
+        <section class="card"><h2>캘린더 구독</h2>
+          <p class="muted" style="margin-bottom:12px">예약·일정을 구글 캘린더나 휴대폰 캘린더에서 볼 수 있습니다. 구글 캘린더 → 다른 캘린더 추가 → URL로 추가에 아래 주소를 넣으세요. 주소를 아는 사람은 일정을 볼 수 있으니 외부에 공유하지 마세요.</p>
+          <div id="ics-box"></div></section>
         <section class="card"><h2>자료 내려받기</h2><p class="muted" style="margin-bottom:12px">엑셀에서 바로 열리는 CSV 파일입니다.</p>
           <p><a class="btn" href="/api/admin/export?type=inquiries">문의</a> <a class="btn" href="/api/admin/export?type=bookings">예약·일정</a> <a class="btn" href="/api/admin/export?type=customers">고객</a></p></section>
       </div></div>`;
+    const icsBox = main.querySelector('#ics-box');
+    const drawIcs = (token) => {
+      const url = token ? `${location.origin}/calendar/${token}.ics` : '';
+      icsBox.innerHTML = url
+        ? `<input type="text" readonly value="${esc(url)}" onclick="this.select()" aria-label="캘린더 구독 주소"><p style="margin-top:10px"><button class="btn btn-sm" type="button" data-ics="copy">주소 복사</button> <button class="btn btn-sm" type="button" data-ics="new">새 주소 만들기</button> <button class="btn btn-sm btn-danger" type="button" data-ics="off">구독 끄기</button></p>`
+        : '<button class="btn" type="button" data-ics="new">구독 주소 만들기</button>';
+    };
+    drawIcs(s.calendar_token);
+    icsBox.addEventListener('click', async (e) => {
+      const b = e.target.closest('[data-ics]');
+      if (!b) return;
+      try {
+        if (b.dataset.ics === 'copy') { await navigator.clipboard.writeText(icsBox.querySelector('input').value); toast('주소를 복사했습니다'); return; }
+        if (b.dataset.ics === 'new' && s.calendar_token && !(await confirmBox('새 주소를 만들면 이전 주소로는 더 이상 일정을 볼 수 없습니다.', '새 주소 만들기'))) return;
+        const r = await api('/calendar/token', { method: 'POST', body: { off: b.dataset.ics === 'off' } });
+        await reloadContent();
+        s.calendar_token = r.token;
+        drawIcs(r.token);
+        toast(r.token ? '구독 주소를 만들었습니다' : '캘린더 구독을 껐습니다');
+      } catch (ex) { toast(ex.message, true); }
+    });
     main.querySelector('#sf').addEventListener('submit', async (e) => {
       e.preventDefault();
       const d = formData(e.target);

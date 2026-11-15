@@ -1,11 +1,18 @@
 import { fail } from './util.js';
-import { getContent } from './db.js';
+import { getContent, processPendingMedia } from './db.js';
+import { serveCalendar } from './ics.js';
 import { handlePublicApi, serveMedia, serveVideoPoster } from './api-public.js';
 import { handleAdminApi } from './api-admin.js';
 import { html } from './render/layout.js';
 import { homePage, venuesPage, venuePage, casesPage, inquiryPage, myPage, guidePage, notFoundPage } from './render/pages.js';
 
+let lastPending = 0;
+
 export default {
+  async scheduled(event, env, ctx) {
+    ctx.waitUntil(processPendingMedia(env, 12).catch((e) => console.error(e)));
+  },
+
   async fetch(request, env, ctx) {
     const url = new URL(request.url);
     const p = url.pathname.length > 1 ? url.pathname.replace(/\/+$/, '') : '/';
@@ -17,11 +24,18 @@ export default {
       if (media) return await serveMedia(request, env, ctx, media[1]);
       const poster = p.match(/^\/media\/dv\/([A-Za-z0-9_-]{20,80})$/);
       if (poster) return await serveVideoPoster(request, env, ctx, poster[1]);
+      const cal = p.match(/^\/calendar\/([A-Za-z0-9_-]{16,80})\.ics$/);
+      if (cal) return await serveCalendar(request, env, cal[1]);
 
       if (request.method !== 'GET' && request.method !== 'HEAD') return new Response('Method not allowed', { status: 405 });
 
       const content = await getContent(env);
       const origin = url.origin;
+      // 아직 받지 못한 드라이브 사진을 가끔 이어서 받습니다(15분마다 도는 예약 작업과 별도로)
+      if (content.dbReady && Date.now() - lastPending > 300000) {
+        lastPending = Date.now();
+        ctx.waitUntil(processPendingMedia(env, 4).catch(() => {}));
+      }
 
       if (p === '/') return html(homePage(content, origin));
       if (p === '/venues') return html(venuesPage(content, origin));

@@ -1,5 +1,5 @@
-import { json, fail, readJson, clip, normPhone, isDate, isTime, toInt, nowIso, kstDate, clientIp, parseJson, csv } from './util.js';
-import { ensureSchema, getContent, setContent, bustContent, logActivity, rateLimit } from './db.js';
+import { json, fail, readJson, clip, normPhone, isDate, isTime, toInt, nowIso, kstDate, clientIp, parseJson, csv, randomToken } from './util.js';
+import { ensureSchema, getContent, setContent, bustContent, logActivity, rateLimit, processPendingMedia } from './db.js';
 import { hashPassword, verifyPassword, validPassword, createSession, destroySession, currentAdmin, sameOrigin } from './auth.js';
 import { createInquiry } from './api-public.js';
 import { folderIdFrom, listDriveFolder, DRIVE_ID } from './drive.js';
@@ -450,7 +450,7 @@ export async function handleAdminApi(request, env, ctx, url) {
   // ── 사진 ───────────────────────────────────────────────────
   if (p === '/media' && method === 'GET') {
     const q = url.searchParams;
-    const rs = await env.DB.prepare('SELECT id, owner_type, owner_id, sort, caption, width, height, size, src FROM media WHERE owner_type=? AND owner_id=? ORDER BY sort, id')
+    const rs = await env.DB.prepare('SELECT id, owner_type, owner_id, sort, caption, width, height, size, src, kind, fetch_state, fetch_at FROM media WHERE owner_type=? AND owner_id=? ORDER BY sort, id')
       .bind(q.get('owner_type') || '', q.get('owner_id') || '').all();
     return json({ ok: true, items: rs.results });
   }
@@ -466,8 +466,9 @@ export async function handleAdminApi(request, env, ctx, url) {
     if (buf.byteLength > 1_800_000) return fail(413, '사진 용량이 너무 큽니다. 다시 시도해 주세요.');
     if (buf.byteLength < 100) return fail(400, '사진 파일이 비어 있습니다.');
     const mx = await env.DB.prepare('SELECT COALESCE(MAX(sort),0) s FROM media WHERE owner_type=? AND owner_id=?').bind(type, owner).first();
-    const r = await env.DB.prepare('INSERT INTO media(owner_type, owner_id, sort, caption, mime, width, height, size, data, created_at) VALUES(?,?,?,?,?,?,?,?,?,?)')
-      .bind(type, owner, mx.s + 1, clip(q.get('caption'), 120), mime, toInt(q.get('w'), 0), toInt(q.get('h'), 0), buf.byteLength, buf, nowIso()).run();
+    const kind = ['photo', 'brand', 'staged'].includes(q.get('kind')) ? q.get('kind') : type === 'site' && owner === 'use' ? 'staged' : 'photo';
+    const r = await env.DB.prepare(`INSERT INTO media(owner_type, owner_id, sort, caption, mime, width, height, size, data, src, kind, fetch_state, created_at) VALUES(?,?,?,?,?,?,?,?,?,'',?,1,?)`)
+      .bind(type, owner, mx.s + 1, clip(q.get('caption'), 120), mime, toInt(q.get('w'), 0), toInt(q.get('h'), 0), buf.byteLength, buf, kind, nowIso()).run();
     bustContent();
     return json({ ok: true, id: r.meta.last_row_id });
   }
@@ -487,7 +488,8 @@ export async function handleAdminApi(request, env, ctx, url) {
     const b = await body();
     const type = b.owner_type;
     const owner = clip(b.owner_id, 60);
-    if (!['venue', 'case'].includes(type) || !owner) return fail(400, '사진을 넣을 곳을 선택해 주세요.');
+    if (!['venue', 'case', 'site'].includes(type) || !owner) return fail(400, '사진을 넣을 곳을 선택해 주세요.');
+    const kind = ['photo', 'brand', 'staged'].includes(b.kind) ? b.kind : type === 'site' && owner === 'use' ? 'staged' : 'photo';
     const images = (Array.isArray(b.images) ? b.images : []).filter((x) => x && DRIVE_ID.test(x.id)).slice(0, 100);
     const videos = (Array.isArray(b.videos) ? b.videos : []).filter((x) => DRIVE_ID.test(x)).slice(0, 20);
     const ids = [];
@@ -495,12 +497,12 @@ export async function handleAdminApi(request, env, ctx, url) {
       const mx = await env.DB.prepare('SELECT COALESCE(MAX(sort),0) s FROM media WHERE owner_type=? AND owner_id=?').bind(type, owner).first();
       const now = nowIso();
       for (let i = 0; i < images.length; i++) {
-        const r = await env.DB.prepare(`INSERT INTO media(owner_type, owner_id, sort, caption, mime, width, height, size, data, src, created_at) VALUES(?,?,?,?,'',0,0,0,NULL,?,?)`)
-          .bind(type, owner, mx.s + i + 1, clip(images[i].caption, 120), `drive:${images[i].id}`, now).run();
+        const r = await env.DB.prepare(`INSERT INTO media(owner_type, owner_id, sort, caption, mime, width, height, size, data, src, kind, fetch_state, created_at) VALUES(?,?,?,?,'',0,0,0,NULL,?,?,0,?)`)
+          .bind(type, owner, mx.s + i + 1, clip(images[i].caption, 120), `drive:${images[i].id}`, kind, now).run();
         ids.push(r.meta.last_row_id);
       }
     }
-    if (videos.length) {
+    if (videos.length && type !== 'site') {
       const key = type === 'venue' ? 'venues' : 'cases';
       const list = JSON.parse(JSON.stringify(content[key]));
       const item = list.find((x) => (type === 'venue' ? x.slug : x.id) === owner);
@@ -520,11 +522,29 @@ export async function handleAdminApi(request, env, ctx, url) {
     return json({ ok: true });
   }
 
+  // 목록용 작은 사진(관리자 화면에서 올릴 때 함께 만듭니다)
+  if ((m = p.match(/^\/media\/(\d+)\/thumb$/)) && method === 'PUT') {
+    const buf = await request.arrayBuffer();
+    if (buf.byteLength > 500_000 || buf.byteLength < 100) return fail(400, '작은 사진의 크기가 올바르지 않습니다.');
+    await env.DB.prepare('UPDATE media SET thumb=? WHERE id=?').bind(buf, toInt(m[1])).run();
+    return json({ ok: true });
+  }
+
+  // 아직 받지 못한 드라이브 사진을 지금 받기
+  if (p === '/media/fetch' && method === 'POST') {
+    const r = await processPendingMedia(env, 10);
+    return json({ ok: true, ...r });
+  }
+
   if ((m = p.match(/^\/media\/(\d+)$/))) {
     const id = toInt(m[1]);
     if (method === 'PATCH') {
       const b = await body();
-      await env.DB.prepare('UPDATE media SET caption=? WHERE id=?').bind(clip(b.caption, 120), id).run();
+      const set = [];
+      const args = [];
+      if (b.caption !== undefined) { set.push('caption=?'); args.push(clip(b.caption, 120)); }
+      if (['photo', 'brand', 'staged'].includes(b.kind)) { set.push('kind=?'); args.push(b.kind); }
+      if (set.length) await env.DB.prepare(`UPDATE media SET ${set.join(', ')} WHERE id=?`).bind(...args, id).run();
       bustContent();
       return json({ ok: true });
     }
@@ -533,6 +553,14 @@ export async function handleAdminApi(request, env, ctx, url) {
       bustContent();
       return json({ ok: true });
     }
+  }
+
+  // ── 캘린더 구독 주소 ───────────────────────────────────────
+  if (p === '/calendar/token' && method === 'POST') {
+    const b = await body();
+    const settings = { ...content.settings, calendar_token: b.off ? '' : randomToken(24) };
+    await setContent(env, 'settings', settings);
+    return json({ ok: true, token: settings.calendar_token });
   }
 
   // ── 관리자 계정 ─────────────────────────────────────────────

@@ -372,7 +372,7 @@ export const DEFAULTS = {
 
 // 처음 배포했을 때 넣어 두는 기본 사진. 구글드라이브 공유 폴더의 파일을 서버가 처음 열 때 한 번 받아 D1에 저장합니다.
 // 관리자에서 지우거나 순서를 바꾸면 그대로 유지되고, 다시 채워지지 않습니다.
-export const SEED_MEDIA_VERSION = 1;
+export const SEED_MEDIA_VERSION = 2;
 const D = {
   B001: '10Mu3JHmTj-rEE2EaaEU4O4pIklaoLGct', B002: '1cnM1GSIXcFp4xuO6B9kgzhobuFMJwDrM', B003: '1GQp0KRKOBPyCu2Adbvj_BPgrffXu4zoi',
   B004: '1a5h2F2qo7_MTJncoCxeYDNAMp0SZ9pzT', B005: '18Dz-iaGH7zSCV6XRRECDFeyHdjJi30Y-', B006: '1tdwR2k-klF4qeYc91c6uEJKV8NOVPQxz',
@@ -421,3 +421,41 @@ export const SEED_MEDIA = {
     [D.K031, '행사 안내 포스터 · 패브릭토리'],
   ],
 };
+
+// 2차 기본 이미지 (2026-11-15): 화이트 갤러리 브랜드 이미지, 한남 실사진, 활용 연출 이미지
+// kind: photo = 실제 사진, brand = 실제 공간을 바탕으로 보정한 브랜드 이미지, staged = 활용 연출 이미지(실제 행사 아님)
+// pos: first = 해당 목록 맨 앞에 넣기
+const WG = {
+  W04: '1sSWN32ab36GRnoBQxJ0PMT2fMwIDZzi0', W05: '1KBJD0zHcCQepA36S4JAZMX35NJVELwgC', W06: '1FOEwZ0Hs4gWTGZBPFfj_CCuRKKgzdSGp',
+  W07: '1nwgiOz3TPFOk5ZNfucDQFl6yfAO4r232', W08: '1Un91y_6-EAwuAPUSEofvGNFFPe3CB8tH', W09: '1RgHFcHgk8t1lpS1WG1BBnOYBwP-yduQB',
+  W10: '17XF0Hw2kDLRxWoTDmWCrj1uwzPNh0eql', W18: '1ukcyxnORSHQ3YOVzrlG0u3CiF1DU1Xfz', W19: '1s6sVznC3K0S7OeUyHFjU52kevEsKkx9I',
+  W20: '14dIsh2thPG5rI-4h1A9mgMjAEIU71_R8',
+};
+const HN = {
+  h24: '1LsxgxzXoCbmqDUGSwQhEjoQl3srEmqZM', h48: '1khrlX40PjRZIzhli-wm1XKrT5G1CI2MF', h35: '1kJzpFIR7Mb1C533TeM_RpRQSF_QRY8XU',
+  h02: '18J8gD2iZEAQrmZIYCMKCrAlPxVgzQOJ2', h31: '1cdR5LbZN0rz797jyH7S4KuRJDbcOvvR8', h45: '1BV3zDiU0HB6MWbftqyGu0E1qGGF6uUyf',
+  h40: '14AlMBxCId3Y0gkNPrfLVd6r7XcBtRr_A', h37: '1TdcJppR4ycJxX_UN5jqoLc-2rzQ2Uqn6', h15: '1hc8CK4EzWW_jNxXCVC8oUe60phBqNQgG',
+};
+export const SEED_MEDIA_V2 = [
+  ['site:hero', WG.W05, '메자닌 삼성, 유리 지붕 아래 2층', 'brand'],
+  ['site:hero', WG.W06, '메자닌 북가좌 아트리움', 'brand'],
+  ['site:og', WG.W04, '', 'brand'],
+  ['site:use', WG.W18, '전시', 'staged'],
+  ['site:use', WG.W19, '브랜드 팝업', 'staged'],
+  ['site:use', WG.W20, '소규모 모임', 'staged'],
+  ['venue:samsung', WG.W05, '유리 지붕 아래 2층 공간', 'brand'],
+  ['venue:samsung', WG.W07, '자연광이 드는 유리 지붕 구간', 'brand'],
+  ['venue:samsung', WG.W08, '창가 공간', 'brand'],
+  ['venue:bukgajwa', WG.W06, '아트리움', 'brand', 'first'],
+  ['venue:bukgajwa', WG.W10, '저녁의 A동 외관', 'brand', 'first'],
+  ['venue:bukgajwa', WG.W09, '중정과 동을 잇는 계단', 'brand', 'first'],
+  ['venue:hannam', HN.h24, '지층 전체', 'photo'],
+  ['venue:hannam', HN.h48, '안쪽으로 이어지는 깊이', 'photo'],
+  ['venue:hannam', HN.h35, '조명을 켠 모습', 'photo'],
+  ['venue:hannam', HN.h02, '기둥이 적은 ㄱ자 구조', 'photo'],
+  ['venue:hannam', HN.h31, '긴 벽면', 'photo'],
+  ['venue:hannam', HN.h45, '흰 벽 구간', 'photo'],
+  ['venue:hannam', HN.h40, '안쪽 끝까지 이어진 동선', 'photo'],
+  ['venue:hannam', HN.h37, '건물 외관', 'photo'],
+  ['venue:hannam', HN.h15, '한남대로 쪽 전경', 'photo'],
+];

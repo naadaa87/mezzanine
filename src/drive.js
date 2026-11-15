@@ -11,22 +11,27 @@ export function folderIdFrom(input) {
 
 const UA = 'Mozilla/5.0 (compatible; MezzanineSite/1.0)';
 
-// 사진을 긴 변 1800px 이하의 JPEG로 받습니다.
-export async function fetchDriveImage(id, size = 1800) {
+// 사진을 긴 변 size px 이하의 JPEG로 받습니다. 용량이 maxBytes를 넘으면 더 작게 다시 받습니다.
+export async function fetchDriveImage(id, size = 1800, maxBytes = 1_850_000) {
   if (!DRIVE_ID.test(id)) return null;
-  const urls = [
-    `https://drive.google.com/thumbnail?id=${id}&sz=w${size}-h${size}`,
-    `https://lh3.googleusercontent.com/d/${id}=w${size}-h${size}`,
-  ];
-  for (const u of urls) {
-    try {
-      const r = await fetch(u, { redirect: 'follow', headers: { 'user-agent': UA, accept: 'image/jpeg,image/png,image/*;q=0.8' } });
-      const type = (r.headers.get('content-type') || '').split(';')[0];
-      if (!r.ok || !type.startsWith('image/')) continue;
-      const buf = await r.arrayBuffer();
-      if (buf.byteLength < 500) continue;
-      return { buf, type, ...imageSize(new Uint8Array(buf)) };
-    } catch {}
+  for (const s of [size, Math.round(size * 0.8), Math.round(size * 0.62)]) {
+    const urls = [
+      `https://lh3.googleusercontent.com/d/${id}=w${s}-h${s}-rj`,
+      `https://drive.google.com/thumbnail?id=${id}&sz=w${s}-h${s}`,
+    ];
+    let tooBig = false;
+    for (const u of urls) {
+      try {
+        const r = await fetch(u, { redirect: 'follow', headers: { 'user-agent': UA, accept: 'image/jpeg,image/png;q=0.8,image/*;q=0.5' } });
+        const type = (r.headers.get('content-type') || '').split(';')[0];
+        if (!r.ok || !type.startsWith('image/')) continue;
+        const buf = await r.arrayBuffer();
+        if (buf.byteLength < 500) continue;
+        if (buf.byteLength > maxBytes) { tooBig = true; continue; }
+        return { buf, type, ...imageSize(new Uint8Array(buf)) };
+      } catch {}
+    }
+    if (!tooBig) return null;
   }
   return null;
 }

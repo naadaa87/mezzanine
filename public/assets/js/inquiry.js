@@ -74,6 +74,37 @@
     if (!de.value || de.value < ds.value) de.value = ds.value;
   });
 
+  // 고른 날짜의 예약 현황을 바로 알려 줍니다
+  const availBox = document.getElementById('avail');
+  let availSeq = 0;
+  const checkAvail = async () => {
+    const v = currentVenue();
+    const from = ds.value;
+    const to = de.value || ds.value;
+    if (!availBox) return;
+    if (!v || v.status === 'coming' || !from) { availBox.hidden = true; return; }
+    const seq = ++availSeq;
+    try {
+      const r = await fetch(`/api/availability?venue=${encodeURIComponent(v.slug)}&from=${from}&to=${to}`);
+      const j = await r.json();
+      if (seq !== availSeq || !j.ok) return;
+      const states = new Set(j.items.map((x) => x.state));
+      let cls = 'is-free';
+      let msg = `${v.name}의 ${from === to ? from : `${from} ~ ${to}`} 일정은 현재 예약 현황상 비어 있습니다.`;
+      if (states.has('booked')) { cls = 'is-booked'; msg = '선택한 기간에 확정된 일정이 있습니다. 일부 공간만 쓰는 경우 함께 쓸 수 있는지 확인해 드리니, 다른 후보 날짜도 함께 적어 주세요.'; }
+      else if (states.has('closed')) { cls = 'is-booked'; msg = '선택한 기간에 대관이 어려운 날짜가 포함되어 있습니다. 다른 날짜를 함께 적어 주세요.'; }
+      else if (states.has('hold')) { cls = 'is-hold'; msg = '선택한 기간에 협의 중인 일정이 있습니다. 문의를 남겨 주시면 가능 여부를 바로 확인해 드립니다.'; }
+      availBox.className = `avail ${cls}`;
+      availBox.textContent = msg;
+      availBox.hidden = false;
+    } catch {
+      availBox.hidden = true;
+    }
+  };
+  ds.addEventListener('change', checkAvail);
+  de.addEventListener('change', checkAvail);
+  form.querySelectorAll('input[name="venue"]').forEach((r) => r.addEventListener('change', checkAvail));
+
   // 전화번호 자동 하이픈
   const phone = document.getElementById('phone');
   phone.addEventListener('input', () => {

@@ -42,7 +42,7 @@
       </div>
       ${q.note ? `<p class="quote-note">${esc(q.note)}</p>` : ''}
       <div class="quote-act">
-        ${q.status === 'sent' ? `<button class="btn btn-point" type="button" data-act="accept">이 견적으로 진행</button><button class="btn btn-line" type="button" data-act="decline">거절</button>` : ''}
+        ${q.status === 'sent' ? `<button class="btn btn-dark" type="button" data-act="accept">이 견적으로 진행</button><button class="btn btn-line" type="button" data-act="decline">거절</button>` : ''}
         <button class="btn btn-line" type="button" data-act="print">인쇄·PDF 저장</button>
       </div>
     </div>`;
@@ -84,7 +84,7 @@
         <div class="my-side">
           <section class="my-sec"><h3>담당자와 메시지</h3>
             <div class="chat" id="chat" aria-live="polite">${d.messages.length ? d.messages.map((m) => `<p class="msg msg-${esc(m.sender)}">${esc(m.body)}<small>${m.sender === 'admin' ? '메자닌 ' : ''}${dt(m.created_at)}</small></p>`).join('') : '<p class="chat-empty">아직 주고받은 메시지가 없습니다. 궁금한 점이나 바뀐 일정을 남겨 주세요.</p>'}</div>
-            <form class="chat-form" id="chat-form"><label class="hp" for="chat-body">메시지</label><textarea id="chat-body" rows="2" maxlength="2000" placeholder="메시지를 입력하세요" required></textarea><button class="btn btn-point" type="submit">보내기</button></form>
+            <form class="chat-form" id="chat-form"><label class="hp" for="chat-body">메시지</label><textarea id="chat-body" rows="2" maxlength="2000" placeholder="메시지를 입력하세요" required></textarea><button class="btn btn-dark" type="submit">보내기</button></form>
             <p class="form-error" id="chat-error" role="alert" hidden></p>
             ${d.channels && d.channels.kakao ? `<p class="hint">급하시면 <a class="more" href="${esc(d.channels.kakao)}" target="_blank" rel="noopener">카카오톡 채널</a>로 접수번호와 함께 연락해 주세요.</p>` : ''}
           </section>

@@ -1,12 +1,12 @@
 /* 메자닌 관리자 화면 */
 :root {
-  --paper: #fff; --mist: #f3f4f6; --ink: #15171a; --sub: #5a616d; --line: #d8dce2;
-  --point: #2447f0; --point-deep: #1733c4; --point-tint: #eef1fe;
-  --ok: #0e7a55; --ok-tint: #e2f4ec; --warn: #a35f00; --warn-tint: #fdf1dc; --bad: #c23328; --bad-tint: #fbe9e7;
-  --font: 'Pretendard Variable', Pretendard, -apple-system, BlinkMacSystemFont, 'Apple SD Gothic Neo', 'Noto Sans KR', 'Noto Sans CJK KR', 'Malgun Gothic', sans-serif;
+  --paper: #fff; --mist: #f2f2ee; --ink: #282a2b; --sub: #6c6f71; --line: #d9dad6;
+  --point: #3f6587; --point-deep: #2f4f6c; --point-tint: #e7edf2;
+  --ok: #2f6b4f; --ok-tint: #e3efe8; --warn: #946200; --warn-tint: #f8efd9; --bad: #b03a2e; --bad-tint: #f7e9e6;
+  --font: 'Pretendard Variable', Pretendard, -apple-system, BlinkMacSystemFont, 'Apple SD Gothic Neo', 'Noto Sans KR', 'Malgun Gothic', sans-serif;
 }
 *, *::before, *::after { box-sizing: border-box; }
-body { margin: 0; font-family: var(--font); font-size: 15px; line-height: 1.6; color: var(--ink); background: var(--mist); word-break: keep-all; overflow-wrap: anywhere; -webkit-font-smoothing: antialiased; }
+body { margin: 0; font-family: var(--font); font-size: 15px; line-height: 1.6; color: var(--ink); background: #fafaf7; word-break: keep-all; overflow-wrap: anywhere; -webkit-font-smoothing: antialiased; }
 h1, h2, h3, p, ul, ol, dl, dd { margin: 0; }
 ul, ol { padding: 0; list-style: none; }
 a { color: inherit; text-decoration: none; }
@@ -24,9 +24,9 @@ button { cursor: pointer; }
 .auth-box { width: min(100%, 420px); background: #fff; border: 1px solid var(--line); padding: 40px 36px; }
 .auth-box h1 { font-size: 1.5rem; font-weight: 800; letter-spacing: -.02em; }
 .auth-box > p { color: var(--sub); margin: 8px 0 24px; }
-.brand { display: flex; align-items: center; gap: 10px; font-weight: 800; letter-spacing: .06em; margin-bottom: 26px; }
-.brand svg { width: 34px; height: 22px; fill: var(--ink); }
-.brand .mark-link { fill: var(--point); }
+.brand { display: flex; align-items: center; gap: 12px; margin-bottom: 26px; color: var(--ink); }
+.brand svg { width: 132px; height: auto; }
+.brand span { white-space: nowrap; font-size: .78rem; color: var(--sub); padding-left: 12px; border-left: 1px solid var(--line); }
 
 /* 틀 */
 .shell { display: grid; grid-template-columns: 220px minmax(0, 1fr); min-height: 100vh; }
@@ -51,10 +51,10 @@ button { cursor: pointer; }
 .back:hover { color: var(--point); }
 
 /* 버튼·입력 */
-.btn { display: inline-flex; align-items: center; justify-content: center; gap: 6px; min-height: 38px; padding: 0 14px; border-radius: 6px; border: 1px solid var(--line); background: #fff; font-weight: 600; font-size: .9rem; white-space: nowrap; }
+.btn { display: inline-flex; align-items: center; justify-content: center; gap: 6px; min-height: 38px; padding: 0 14px; border-radius: 2px; border: 1px solid var(--line); background: #fff; font-weight: 600; font-size: .9rem; white-space: nowrap; }
 .btn:hover { border-color: var(--ink); }
-.btn-point { background: var(--point); border-color: var(--point); color: #fff; }
-.btn-point:hover { background: var(--point-deep); border-color: var(--point-deep); }
+.btn-point { background: var(--ink); border-color: var(--ink); color: #fafaf7; }
+.btn-point:hover { background: #000; border-color: #000; }
 .btn-danger { color: var(--bad); }
 .btn-danger:hover { border-color: var(--bad); background: var(--bad-tint); }
 .btn-sm { min-height: 30px; padding: 0 10px; font-size: .82rem; }
@@ -64,7 +64,7 @@ button { cursor: pointer; }
 label.f, .f { display: block; margin-bottom: 14px; min-width: 0; }
 .f > span, .f-label { display: block; font-size: .84rem; font-weight: 600; margin-bottom: 5px; color: #3c424c; }
 .f small { color: var(--sub); font-weight: 400; }
-input[type='text'], input[type='tel'], input[type='email'], input[type='number'], input[type='date'], input[type='time'], input[type='password'], input[type='url'], input[type='search'], select, textarea { width: 100%; min-height: 40px; padding: 8px 11px; border: 1px solid #b9bec7; border-radius: 6px; background: #fff; }
+input[type='text'], input[type='tel'], input[type='email'], input[type='number'], input[type='date'], input[type='time'], input[type='password'], input[type='url'], input[type='search'], select, textarea { width: 100%; min-height: 40px; padding: 8px 11px; border: 1px solid #c9cbc6; border-radius: 2px; background: #fff; }
 textarea { resize: vertical; line-height: 1.55; }
 input:focus, select:focus, textarea:focus { outline: 0; border-color: var(--point); box-shadow: 0 0 0 3px var(--point-tint); }
 .g2 { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0 14px; }
@@ -88,6 +88,9 @@ a.kpi:hover { border-color: var(--point); }
 .kpi strong { display: block; font-size: 1.9rem; font-weight: 800; letter-spacing: -.03em; line-height: 1.25; font-variant-numeric: tabular-nums; }
 .kpi em { font-style: normal; font-size: .84rem; color: var(--sub); }
 .kpi.is-hot strong { color: var(--point); }
+.badge-kind { display: inline-block; font-size: .7rem; padding: 0 6px; border: 1px solid var(--line); color: var(--sub); margin-left: 4px; }
+.badge-wait { color: var(--warn); border-color: currentColor; }
+.badge-fail { color: var(--bad); border-color: currentColor; }
 .tbl-wrap { overflow-x: auto; background: #fff; border: 1px solid var(--line); }
 .card .tbl-wrap { border: 0; margin: 0 -22px -20px; }
 table.tbl { width: 100%; border-collapse: collapse; font-size: .92rem; }

@@ -6,7 +6,7 @@ window.MZ = (() => {
   const modalRoot = document.getElementById('modal-root');
   const toastBox = document.getElementById('toast');
   const views = {};
-  const MARK = '<svg viewBox="0 0 44 28" aria-hidden="true"><rect x="1" y="6" width="10" height="21"/><rect x="17" y="1" width="10" height="26"/><rect x="33" y="10" width="10" height="17"/><rect class="mark-link" x="11" y="13" width="22" height="4"/></svg>';
+  const MARK = '<svg class="wm" viewBox="-4.5 -4.5 985 109" role="img" aria-label="MEZZANINE" xmlns="http://www.w3.org/2000/svg"><path d="M0,100V0L52,72L104,0V100M210,0H150V100H210M150,50H202M256,0H328L256,100H328M264,50H320M374,0H446L374,100H446M382,50H438M492,100L536,4L580,100M626,100V0L702,100V0M748,0V100M794,100V0L870,100V0M976,0H916V100H976M916,50H968" fill="none" stroke="currentColor" stroke-width="7" stroke-linejoin="miter" stroke-miterlimit="2.6" stroke-linecap="butt"/></svg>';
 
   const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
   const won = (n) => Number(n || 0).toLocaleString('ko-KR');
@@ -112,7 +112,7 @@ window.MZ = (() => {
   // ── 로그인·첫 설정 ───────────────────────────────────────────
   function showAuth(setup, message = '') {
     app.innerHTML = `<div class="auth"><form class="auth-box" id="auth" novalidate>
-      <div class="brand">${MARK}<span>MEZZANINE</span></div>
+      <div class="brand">${MARK}<span>관리자</span></div>
       <h1>${setup ? '관리자 계정 만들기' : '관리자 로그인'}</h1>
       <p>${setup ? '처음 접속하셨습니다. 이 사이트를 관리할 계정을 만들어 주세요. 여기서 정한 아이디와 비밀번호로 로그인하게 됩니다.' : '메자닌 서울 관리자 화면입니다.'}</p>
       ${message ? `<p class="note">${esc(message)}</p>` : ''}
@@ -150,7 +150,7 @@ window.MZ = (() => {
   function shell() {
     app.innerHTML = `<div class="shell">
       <aside class="side">
-        <a class="brand" href="#/">${MARK}<span>MEZZANINE</span></a>
+        <a class="brand" href="#/">${MARK}<span>관리자</span></a>
         <nav id="side-nav" aria-label="관리 메뉴"></nav>
         <div class="side-foot"><b>${esc(S.admin.name || S.admin.login)}</b>
           <div class="row"><a href="/" target="_blank" rel="noopener">사이트 보기</a><button type="button" id="logout">로그아웃</button></div>

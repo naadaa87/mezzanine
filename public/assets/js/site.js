@@ -5,6 +5,36 @@
   const pad = (n) => String(n).padStart(2, '0');
   const ymd = (d) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
 
+  // 스크롤하면 상단에 얇은 선
+  const top = $('.top');
+  if (top) {
+    const onScroll = () => top.classList.toggle('is-scrolled', window.scrollY > 8);
+    window.addEventListener('scroll', onScroll, { passive: true });
+    onScroll();
+  }
+
+  // 영상 미리보기 이미지를 못 받으면 깨진 아이콘 대신 어두운 바탕과 재생 버튼만 둡니다
+  const dropBroken = (img) => { img.style.visibility = 'hidden'; };
+  $$('.dv img, .yt img').forEach((img) => {
+    if (img.complete && !img.naturalWidth) dropBroken(img);
+    img.addEventListener('error', () => dropBroken(img), { once: true });
+  });
+
+  // 홈 대표 이미지: 여러 장이면 천천히 바꿔 보여줍니다(움직임 줄이기 설정이면 멈춤)
+  $$('[data-slides]').forEach((fig) => {
+    const slides = $$('.hero-slide', fig);
+    const cap = $('[data-cap-out]', fig);
+    if (slides.length < 2 || matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+    let i = 0;
+    setInterval(() => {
+      if (document.hidden) return;
+      slides[i].classList.remove('is-on');
+      i = (i + 1) % slides.length;
+      slides[i].classList.add('is-on');
+      if (cap) cap.textContent = slides[i].dataset.cap || '';
+    }, 7000);
+  });
+
   // 모바일 메뉴
   const menuBtn = $('.menu-btn');
   const nav = $('#nav');
@@ -12,7 +42,8 @@
     menuBtn.addEventListener('click', () => {
       const open = nav.classList.toggle('is-open');
       menuBtn.setAttribute('aria-expanded', String(open));
-      menuBtn.textContent = open ? '닫기' : '메뉴';
+      const label = $('.menu-label', menuBtn);
+      if (label) label.textContent = open ? '닫기' : '메뉴';
     });
   }
 

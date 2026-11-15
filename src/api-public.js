@@ -1,5 +1,5 @@
 import { json, fail, readJson, clip, normPhone, isDate, isTime, toInt, nowIso, kstDate, randomCode, randomToken, clientIp, parseJson } from './util.js';
-import { ensureSchema, getContent, logActivity, rateLimit } from './db.js';
+import { ensureSchema, getContent, logActivity, rateLimit, storeDriveMedia } from './db.js';
 import { sameOrigin } from './auth.js';
 import { notify } from './notify.js';
 import { fetchDriveImage, DRIVE_ID } from './drive.js';
@@ -226,10 +226,11 @@ export async function handlePublicApi(request, env, ctx, url) {
   return fail(404, '없는 주소입니다.');
 }
 
-// 업로드된 사진 제공. 구글드라이브에서 가져온 사진은 처음 열 때 받아서 D1에 저장해 둡니다.
+// 사진 제공. ?s=sm 이면 목록용 작은 사진. 드라이브에서 가져온 사진은 아직 저장 전이면 지금 받아 저장합니다.
 export async function serveMedia(request, env, ctx, id) {
+  const small = new URL(request.url).searchParams.get('s') === 'sm';
   const cache = caches.default;
-  const key = new Request(new URL(`/media/${id}`, request.url).toString());
+  const key = new Request(new URL(`/media/${id}${small ? '?s=sm' : ''}`, request.url).toString());
   try {
     const hit = await cache.match(key);
     if (hit) return hit;
@@ -237,31 +238,21 @@ export async function serveMedia(request, env, ctx, id) {
   let row;
   try {
     await ensureSchema(env);
-    row = await env.DB.prepare('SELECT id, mime, data, src FROM media WHERE id=?').bind(toInt(id)).first();
+    row = await env.DB.prepare(`SELECT id, mime, src, size, ${small ? 'COALESCE(thumb, data)' : 'data'} AS body FROM media WHERE id=?`).bind(toInt(id)).first();
   } catch {
     row = null;
   }
   if (!row) return new Response('Not found', { status: 404 });
-  let body;
+  let body = row.body;
   let type = row.mime || 'image/webp';
-  if (row.data) {
-    body = row.data instanceof ArrayBuffer ? row.data : new Uint8Array(row.data);
-  } else if (String(row.src || '').startsWith('drive:')) {
-    const img = await fetchDriveImage(row.src.slice(6));
+  if (!body && String(row.src || '').startsWith('drive:')) {
+    const img = await storeDriveMedia(env, row);
     if (!img) return new Response('Not available', { status: 404, headers: { 'cache-control': 'no-store' } });
     body = img.buf;
     type = img.type;
-    if (img.buf.byteLength <= 1_900_000) {
-      ctx.waitUntil(
-        env.DB.prepare('UPDATE media SET data=?, mime=?, width=?, height=?, size=? WHERE id=? AND data IS NULL')
-          .bind(img.buf, img.type, img.w || 0, img.h || 0, img.buf.byteLength, row.id)
-          .run()
-          .catch(() => {})
-      );
-    }
-  } else {
-    return new Response('Not found', { status: 404 });
   }
+  if (!body) return new Response('Not found', { status: 404 });
+  if (!(body instanceof ArrayBuffer)) body = new Uint8Array(body);
   const res = new Response(body, {
     headers: { 'content-type': type, 'cache-control': 'public, max-age=31536000, immutable' },
   });

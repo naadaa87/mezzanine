@@ -1,5 +1,5 @@
 import { esc } from '../util.js';
-import { page, coverOf, venueBy, statusChip } from './layout.js';
+import { page, coverOf, venueBy, statusChip, ARROW, KIND_LABEL } from './layout.js';
 import { sectionSVG } from './diagram.js';
 import { EVENT_TYPES, OPTION_LIST, BUDGETS } from '../seed.js';
 
@@ -22,11 +22,25 @@ const USE_ROWS = [
   ['단기 임대·카페 운영', ['단기 임대', '카페']],
 ];
 
+const short = (v) => v.name.replace('메자닌 ', '');
+const enName = (v) => (v.name_en || '').toUpperCase();
+const mediaOf = (content, key) => content.media[key] || [];
+const capOf = (m) => [m.caption, KIND_LABEL[m.kind]].filter(Boolean).join(' · ');
+const kindTag = (m) => (KIND_LABEL[m.kind] ? `<span class="tag">${KIND_LABEL[m.kind]}</span>` : '');
+const imgTag = (m, { sm = true, alt = '', lazy = true, extra = '' } = {}) =>
+  `<img src="/media/${m.id}${sm ? '?s=sm' : ''}" alt="${esc(alt)}"${lazy ? ' loading="lazy"' : ''} decoding="async" width="${m.width || 1600}" height="${m.height || 1067}"${extra}>`;
+const galBtn = (m, alt, inner) => `<button type="button" class="gal-item" data-full="/media/${m.id}" data-cap="${esc(capOf(m))}" aria-label="${esc(alt)} 크게 보기">${inner}</button>`;
+const hiddenItems = (list) => list.map((m) => `<button type="button" class="gal-item" hidden data-full="/media/${m.id}" data-cap="${esc(capOf(m))}"></button>`).join('');
+const brandNote = (list) =>
+  list.some((m) => m.kind === 'brand')
+    ? '<p class="gal-note">‘브랜드 이미지’ 표시가 있는 사진은 실제 공간 사진을 바탕으로 보정한 이미지로, 세부 모습이 지금과 다를 수 있습니다.</p>'
+    : '';
+
 // 구글드라이브 영상: 미리보기 이미지를 누르면 드라이브 플레이어가 열립니다.
 function driveVideos(ids, label) {
   if (!ids || !ids.length) return '';
   return `<div class="dvs"><h3>현장 영상</h3><div class="dv-grid">${ids
-    .map((id, i) => `<button type="button" class="dv" data-dv="${esc(id)}" aria-label="${esc(label)} 영상 ${i + 1} 재생"><img src="/media/dv/${esc(id)}" alt="" loading="lazy" width="480" height="270"><span class="yt-play" aria-hidden="true"></span></button>`)
+    .map((id, i) => `<button type="button" class="dv" data-dv="${esc(id)}" aria-label="${esc(label)} 영상 ${i + 1} 재생"><img src="/media/dv/${esc(id)}" alt="" loading="lazy" width="480" height="270"><span class="play" aria-hidden="true"></span></button>`)
     .join('')}</div></div>`;
 }
 
@@ -35,103 +49,139 @@ const ogImage = (content, type, id) => {
   return m && m.length ? `/media/${m[0].id}` : '';
 };
 
-const venueSpec = (v) => v.stats.slice(0, 3).map((s) => `<span><b>${esc(s.value)}</b> ${esc(s.label)}</span>`).join('');
-
-function caseCard(content, c, { heading = 'h3' } = {}) {
+function caseCard(content, c) {
   const v = venueBy(content, c.venue);
   const cover = coverOf(content, 'case', c.id, c.video);
-  const media = cover
-    ? `<img src="${esc(cover.src)}" alt="" loading="lazy" width="${cover.w || 480}" height="${cover.h || 360}">`
-    : `<span class="case-ph" aria-hidden="true">${esc(c.type || '')}</span>`;
-  return `<article class="case" data-venue="${esc(c.venue)}">
-    <a class="case-media${cover ? '' : ' is-empty'}" href="/cases#${esc(c.id)}" tabindex="-1" aria-hidden="true">${media}</a>
-    <div class="case-body">
-      <p class="case-meta">${v ? esc(v.name) : ''}${c.date ? `<span>${esc(c.date)}</span>` : ''}</p>
-      <${heading} class="case-title"><a href="/cases#${esc(c.id)}">${esc(c.title)}</a></${heading}>
-      <p class="case-sum">${esc(c.summary)}</p>
-    </div>
+  return `<article class="case">
+    <a class="case-media${cover ? '' : ' is-empty'}" href="/cases#${esc(c.id)}" tabindex="-1" aria-hidden="true">${
+      cover ? `<img src="${esc(cover.sm)}" alt="" loading="lazy" decoding="async" width="${cover.w || 480}" height="${cover.h || 360}">` : `<span>${esc(c.type || '')}</span>`
+    }</a>
+    <p class="case-meta">${v ? esc(short(v)) : ''}${c.date ? `<span>${esc(c.date)}</span>` : ''}</p>
+    <h3 class="case-title"><a href="/cases#${esc(c.id)}">${esc(c.title)}</a></h3>
+    <p class="case-sum">${esc(c.summary)}</p>
   </article>`;
+}
+
+function ctaBand(title, text, venue = '', label = '대관 문의하기') {
+  return `<section class="cta">
+    <div class="wrap cta-in">
+      <div><h2>${title}</h2><p>${text}</p></div>
+      <div class="cta-btns">
+        <a class="btn btn-white btn-lg" href="/inquiry${venue ? `?venue=${esc(venue)}` : ''}">${label}</a>
+        <a class="btn btn-ghost btn-lg" href="/my">내 문의 조회</a>
+      </div>
+    </div>
+  </section>`;
 }
 
 // ── 홈 ───────────────────────────────────────────────────────
 export function homePage(content, origin) {
   const venues = content.venues;
-  const first = venues[0];
   const s = content.settings;
   const openVenues = venues.filter((v) => v.status === 'open');
+  const coming = venues.filter((v) => v.status === 'coming');
 
-  const hero = `<section class="hero">
-    <div class="wrap hero-in">
-      <div class="hero-copy">
-        <h1>건물 한 채를<br>통째로 빌립니다</h1>
-        <p class="hero-lead">메자닌 서울은 서로 다른 건물을 2층에서 이어 붙인 복합 대관 공간입니다. 팝업과 전시, 브랜드 행사, 공연을 한 동부터 건물 전체까지 필요한 만큼 열 수 있습니다.</p>
-        <div class="hero-cta">
-          <a class="btn btn-point btn-lg" href="/inquiry">대관 문의하기</a>
-          <a class="btn btn-line btn-lg" href="/venues">지점 둘러보기</a>
+  // 대표 이미지: 관리자 '홈 대표 이미지' → 없으면 첫 지점 사진
+  let slides = mediaOf(content, 'site:hero');
+  if (!slides.length) for (const v of venues) if (!slides.length) slides = mediaOf(content, `venue:${v.slug}`).slice(0, 1);
+
+  const places = `${openVenues.map(short).join(' · ')}${coming.length ? `<span class="soon">${coming.map(short).join(' · ')} 오픈 예정</span>` : ''}`;
+  const hero = `<section class="hero${slides.length ? '' : ' is-plain'}">
+    <div class="wrap">
+      ${slides.length ? `<figure class="hero-fig" data-slides>
+        ${slides.slice(0, 4).map((m, i) => `<img class="hero-slide${i === 0 ? ' is-on' : ''}" src="/media/${m.id}" alt="${esc(m.caption || '메자닌 공간')}"${i ? ' loading="lazy"' : ' fetchpriority="high"'} decoding="async" width="${m.width || 1800}" height="${m.height || 760}" data-cap="${esc(capOf(m))}">`).join('')}
+        <figcaption class="hero-cap" data-cap-out>${esc(capOf(slides[0]))}</figcaption>
+      </figure>` : ''}
+      <div class="hero-text">
+        <h1>온전히 열린 공간.</h1>
+        <div class="hero-row">
+          <p class="places">${places}</p>
+          <a class="arrow-link" href="/inquiry">대관 문의 ${ARROW}</a>
         </div>
-        <dl class="hero-facts">
-          <div><dt>지점</dt><dd>삼성 · 북가좌 · 한남</dd></div>
-          <div><dt>규모</dt><dd>삼성·북가좌 약 600평</dd></div>
-          <div><dt>오픈 예정</dt><dd>응암</dd></div>
+      </div>
+    </div>
+  </section>`;
+
+  const intro = `<section class="sec intro" aria-labelledby="h-intro">
+    <div class="wrap intro-in">
+      <h2 id="h-intro" class="statement">공간에 여백을,<br>경험에 깊이를.</h2>
+      <div class="intro-body">
+        <p>메자닌은 층과 층 사이에 놓인 중간층을 말합니다. 메자닌 서울은 서로 다른 건물을 2층에서 이어, 한 층만 쓰는 작은 모임부터 건물 전체를 여는 큰 행사까지 같은 곳에서 열 수 있게 만들었습니다.</p>
+        <p>넓게 비워 둔 바닥과 자연광, 동과 동을 잇는 동선은 그대로 두고, 그 위에 놓일 행사를 기다립니다.</p>
+        <dl class="facts">
+          <div><dt>공간</dt><dd>${openVenues.length}곳 운영${coming.length ? ` · ${coming.length}곳 오픈 예정` : ''}</dd></div>
+          <div><dt>삼성·북가좌</dt><dd>약 600평</dd></div>
+          <div><dt>대관 단위</dt><dd>한 층부터 건물 전체까지</dd></div>
         </dl>
       </div>
-      <div class="hero-fig" data-tabs>
+    </div>
+  </section>`;
+
+  const linked = venues.filter((v) => (v.buildings || []).length);
+  const figure = linked.length ? `<section class="sec sec-tone" aria-labelledby="h-fig">
+    <div class="wrap fig-in">
+      <div class="fig-head">
+        <h2 id="h-fig">건물과 건물 사이,<br>2층에서 이어집니다</h2>
+        <p>지점마다 건물 구성이 다릅니다. 그림에서 층을 누르면 그 층의 쓰임새가 나옵니다.</p>
+      </div>
+      <div class="fig-box" data-tabs>
         <div class="tabs" role="tablist" aria-label="지점별 건물 구성">
-          ${venues.map((v, i) => `<button role="tab" type="button" id="tab-${esc(v.slug)}" aria-controls="pane-${esc(v.slug)}" aria-selected="${i === 0}" tabindex="${i === 0 ? 0 : -1}">${esc(v.name.replace('메자닌 ', ''))}</button>`).join('')}
+          ${linked.map((v, i) => `<button role="tab" type="button" id="tab-${esc(v.slug)}" aria-controls="pane-${esc(v.slug)}" aria-selected="${i === 0}" tabindex="${i === 0 ? 0 : -1}">${esc(short(v))}</button>`).join('')}
         </div>
-        ${venues.map((v, i) => `<div class="pane" role="tabpanel" id="pane-${esc(v.slug)}" aria-labelledby="tab-${esc(v.slug)}"${i === 0 ? '' : ' hidden'}>
+        ${linked.map((v, i) => `<div class="pane" role="tabpanel" id="pane-${esc(v.slug)}" aria-labelledby="tab-${esc(v.slug)}"${i === 0 ? '' : ' hidden'}>
           ${sectionSVG(v)}
           <div class="pane-foot">
-            <p class="sd-cap" data-default="${esc(v.headline)}">${esc(v.headline)}</p>
-            <a class="more" href="/venues/${esc(v.slug)}">${esc(v.name)} 자세히 보기</a>
+            <p class="sd-cap">${esc(v.headline)}</p>
+            <a class="arrow-link" href="/venues/${esc(v.slug)}">${esc(v.name)} ${ARROW}</a>
           </div>
         </div>`).join('')}
       </div>
     </div>
-  </section>`;
+  </section>` : '';
 
-  const index = `<section class="sec" aria-labelledby="h-venues">
+  const venueRows = `<section class="sec" aria-labelledby="h-venues">
     <div class="wrap">
-      <div class="sec-head">
-        <h2 id="h-venues">지점</h2>
-        <p>서울 네 곳. 건물의 생김새와 동네가 모두 달라 행사 성격에 맞춰 고를 수 있습니다.</p>
+      <div class="sec-head sec-head-row">
+        <h2 id="h-venues">공간</h2>
+        <a class="arrow-link" href="/venues">전체 비교 ${ARROW}</a>
       </div>
-      <ul class="vlist">
-        ${venues.map((v) => `<li>
-          <a class="vrow" href="/venues/${esc(v.slug)}">
-            <span class="vrow-name">${esc(v.name)}</span>
-            <span class="vrow-where">${esc(v.district)}</span>
-            <span class="vrow-spec">${v.status === 'coming' ? '<span>공간 정보는 오픈과 함께 공개합니다</span>' : venueSpec(v)}</span>
-            ${statusChip(v)}
-          </a>
-        </li>`).join('')}
-      </ul>
+      <div class="vrows">
+        ${venues.map((v) => {
+          const cover = coverOf(content, 'venue', v.slug, '');
+          const soon = v.status === 'coming';
+          return `<article class="vrow${soon ? ' is-soon' : ''}">
+            <a class="vrow-fig" href="/venues/${esc(v.slug)}" tabindex="-1" aria-hidden="true">${
+              cover ? `<img src="${esc(cover.sm)}" alt="" loading="lazy" decoding="async" width="${cover.w || 1200}" height="${cover.h || 900}">${cover.kind === 'brand' ? '<span class="tag">브랜드 이미지</span>' : ''}` : `<span class="vrow-blank">${sectionSVG(v)}</span>`
+            }</a>
+            <div class="vrow-txt">
+              <p class="en" lang="en">${esc(enName(v))}</p>
+              <h3><a href="/venues/${esc(v.slug)}">${esc(v.name)}</a></h3>
+              <p class="vrow-where">${soon || !v.address ? esc(v.district) : esc(v.address.replace(/^서울\s*/, ''))}</p>
+              <p class="vrow-line">${esc(v.headline)}</p>
+              ${v.stats.length ? `<dl class="mini">${v.stats.slice(0, 3).map((x) => `<div><dt>${esc(x.label)}</dt><dd>${esc(x.value)}</dd></div>`).join('')}</dl>` : ''}
+              <a class="arrow-link" href="${soon ? `/inquiry?venue=${esc(v.slug)}` : `/venues/${esc(v.slug)}`}">${soon ? '오픈 알림 신청' : '공간 보기'} ${ARROW}</a>
+            </div>
+          </article>`;
+        }).join('')}
+      </div>
     </div>
   </section>`;
 
-  const why = `<section class="sec sec-mist" aria-labelledby="h-why">
-    <div class="wrap why">
-      <div class="why-head">
-        <h2 id="h-why">메자닌은 건물 사이를 잇는 층입니다</h2>
-        <p>메자닌 서울은 따로 서 있던 건물들을 2층에서 연결했습니다. 건물마다 구조와 분위기가 달라서, 하나의 행사 안에 전혀 다른 장면을 여러 개 만들 수 있습니다.</p>
-      </div>
-      <ul class="why-list">
-        <li><h3>한 동만, 또는 전부</h3><p>행사 규모에 맞춰 한 층이나 한 동만 쓸 수도, 세 동과 마당을 모두 열 수도 있습니다. 쓰는 만큼만 견적을 냅니다.</p></li>
-        <li><h3>2층에서 이어지는 동선</h3><p>관람객이 밖으로 나오지 않고 건물 사이를 오갑니다. 전시와 판매, 공연과 리셉션을 동마다 나눠 배치하기 좋습니다.</p></li>
-        <li><h3>실내와 마당을 함께</h3><p>중정과 테라스, 루프탑까지 한 번에 씁니다. 대기 줄이나 야외 프로그램을 건물 안쪽에서 해결할 수 있습니다.</p></li>
-      </ul>
-    </div>
-  </section>`;
-
-  const uses = `<section class="sec" aria-labelledby="h-uses">
+  const staged = mediaOf(content, 'site:use');
+  const uses = `<section class="sec sec-tone" aria-labelledby="h-uses">
     <div class="wrap">
       <div class="sec-head">
-        <h2 id="h-uses">어떤 행사를 어디에서</h2>
-        <p>지금까지 지점별로 진행했거나 구조상 잘 맞는 행사입니다. 표에 없는 형태도 문의 주시면 검토합니다.</p>
+        <h2 id="h-uses">이렇게 쓰입니다</h2>
+        <p>전시와 팝업, 브랜드 행사와 공연, 열 명 남짓한 모임까지. 비워 둔 공간이라 행사에 맞춰 채우기 쉽습니다.</p>
       </div>
+      ${staged.length ? `<div class="uses" data-gallery>
+        ${staged.slice(0, 3).map((m) => `<figure class="use">${galBtn(m, m.caption || '활용 예시', `${imgTag(m, { alt: m.caption || '' })}${kindTag(m)}`)}<figcaption>${esc(m.caption || '')}</figcaption></figure>`).join('')}
+      </div>
+      <p class="gal-note">위 사진은 공간 활용 방법을 보여주는 연출 이미지이며, 실제 행사 사진은 아래 사례에서 볼 수 있습니다.</p>` : ''}
       <div class="table-scroll">
         <table class="matrix">
-          <thead><tr><th scope="col">행사</th>${openVenues.map((v) => `<th scope="col"><a href="/venues/${esc(v.slug)}">${esc(v.name.replace('메자닌 ', ''))}</a></th>`).join('')}</tr></thead>
+          <caption>지점별로 진행했거나 구조상 잘 맞는 행사</caption>
+          <thead><tr><th scope="col">행사</th>${openVenues.map((v) => `<th scope="col"><a href="/venues/${esc(v.slug)}">${esc(short(v))}</a></th>`).join('')}</tr></thead>
           <tbody>
             ${USE_ROWS.map(([label, keys]) => `<tr><th scope="row">${label}</th>${openVenues.map((v) => {
               const ok = (v.uses || []).some((u) => keys.some((k) => u.includes(k)));
@@ -144,26 +194,24 @@ export function homePage(content, origin) {
   </section>`;
 
   const cases = content.cases.slice(0, 3);
-  const caseSec = cases.length ? `<section class="sec sec-mist" aria-labelledby="h-cases">
+  const caseSec = cases.length ? `<section class="sec" aria-labelledby="h-cases">
     <div class="wrap">
       <div class="sec-head sec-head-row">
-        <div><h2 id="h-cases">이런 행사가 열렸습니다</h2></div>
-        <a class="more" href="/cases">대관 사례 전체 보기</a>
+        <h2 id="h-cases">실제로 열린 행사</h2>
+        <a class="arrow-link" href="/cases">대관 사례 전체 ${ARROW}</a>
       </div>
-      <div class="cases cases-3">${cases.map((c) => caseCard(content, c)).join('')}</div>
+      <div class="cases">${cases.map((c) => caseCard(content, c)).join('')}</div>
     </div>
   </section>` : '';
 
-  const process = `<section class="sec" aria-labelledby="h-process">
+  const process = `<section class="sec sec-tone" aria-labelledby="h-process">
     <div class="wrap">
       <div class="sec-head"><h2 id="h-process">대관은 이렇게 진행됩니다</h2></div>
-      <ol class="steps">
-        ${PROCESS.map(([t, d]) => `<li><h3>${t}</h3><p>${d}</p></li>`).join('')}
-      </ol>
+      <ol class="steps">${PROCESS.map(([t, d]) => `<li><h3>${t}</h3><p>${d}</p></li>`).join('')}</ol>
     </div>
   </section>`;
 
-  const cta = ctaBand('행사 일정이 정해졌다면 먼저 날짜부터 확인하세요', '지점과 날짜, 대략의 규모만 적어 주셔도 됩니다. 접수 후 내 문의 조회에서 견적과 답변을 확인할 수 있습니다.');
+  const cta = ctaBand('일정이 정해졌다면,<br>날짜부터 확인해 보세요.', '지점과 날짜, 대략의 규모만 적어 주셔도 됩니다. 접수 후 내 문의 조회에서 견적과 답변을 확인할 수 있습니다.');
 
   const jsonLd = {
     '@context': 'https://schema.org',
@@ -171,81 +219,92 @@ export function homePage(content, origin) {
     name: s.brand,
     alternateName: s.brand_en,
     url: (s.site_url || origin) + '/',
+    slogan: '공간에 여백을, 경험에 깊이를.',
     sameAs: Object.values(s.channels || {}).filter(Boolean),
   };
 
-  return page({ content, origin, path: '/', title: '', body: hero + index + why + uses + caseSec + process + cta, jsonLd });
+  return page({ content, origin, path: '/', title: '', body: hero + intro + figure + venueRows + uses + caseSec + process + cta, jsonLd });
 }
 
-function ctaBand(title, text, venue = '') {
-  return `<section class="cta">
-    <div class="wrap cta-in">
-      <div><h2>${title}</h2><p>${text}</p></div>
-      <div class="cta-btns">
-        <a class="btn btn-white btn-lg" href="/inquiry${venue ? `?venue=${esc(venue)}` : ''}">대관 문의하기</a>
-        <a class="btn btn-ghost btn-lg" href="/my">내 문의 조회</a>
-      </div>
-    </div>
-  </section>`;
-}
-
-// ── 지점 목록 ─────────────────────────────────────────────────
+// ── 공간 목록 ─────────────────────────────────────────────────
 export function venuesPage(content, origin) {
+  const venues = content.venues;
+  const keys = ['규모', '구성', '대지', '건물', '층', '깊이', '층고', '루프탑', '주차', '진행 사례'];
   const body = `<section class="phead"><div class="wrap">
-      <h1>지점</h1>
-      <p>메자닌 서울의 네 지점입니다. 건물 구성과 위치를 비교해 보고, 맞는 곳에 문의를 남겨 주세요.</p>
+      <p class="en" lang="en">SPACES</p>
+      <h1>공간</h1>
+      <p>메자닌 서울의 네 공간입니다. 건물 구성과 위치를 비교해 보고, 맞는 곳에 문의를 남겨 주세요.</p>
     </div></section>
-    <section class="sec sec-tight"><div class="wrap vcards">
-      ${content.venues.map((v) => {
+    <section class="sec sec-tight"><div class="wrap">
+      <div class="vgrid">
+      ${venues.map((v) => {
         const cover = coverOf(content, 'venue', v.slug, '');
+        const soon = v.status === 'coming';
         return `<article class="vcard">
-          <a class="vcard-fig" href="/venues/${esc(v.slug)}" aria-hidden="true" tabindex="-1">${cover ? `<img src="${esc(cover.src)}" alt="" loading="lazy">` : sectionSVG(v)}</a>
+          <a class="vcard-fig" href="/venues/${esc(v.slug)}" aria-hidden="true" tabindex="-1">${cover ? `<img src="${esc(cover.sm)}" alt="" loading="lazy" decoding="async">${cover.kind === 'brand' ? '<span class="tag">브랜드 이미지</span>' : ''}` : sectionSVG(v)}</a>
           <div class="vcard-body">
-            <p class="vcard-top">${statusChip(v)}<span>${esc(v.district)}</span></p>
-            <h2><a href="/venues/${esc(v.slug)}">${esc(v.name)}</a></h2>
+            <p class="en" lang="en">${esc(enName(v))}</p>
+            <h2><a href="/venues/${esc(v.slug)}">${esc(v.name)}</a> ${statusChip(v)}</h2>
+            <p class="vcard-where">${esc(v.district)}</p>
             <p class="vcard-sum">${esc(v.headline)}</p>
-            ${v.stats.length ? `<dl class="spec">${v.stats.map((s) => `<div><dt>${esc(s.label)}</dt><dd>${esc(s.value)}</dd></div>`).join('')}</dl>` : ''}
-            <p class="vcard-links"><a class="btn btn-line" href="/venues/${esc(v.slug)}">공간 자세히 보기</a><a class="btn btn-point" href="/inquiry?venue=${esc(v.slug)}">${v.status === 'coming' ? '오픈 알림 신청' : '이 지점 문의'}</a></p>
+            ${v.stats.length ? `<dl class="mini">${v.stats.map((x) => `<div><dt>${esc(x.label)}</dt><dd>${esc(x.value)}</dd></div>`).join('')}</dl>` : ''}
+            <p class="vcard-links"><a class="btn btn-line" href="/venues/${esc(v.slug)}">공간 자세히 보기</a><a class="btn btn-dark" href="/inquiry?venue=${esc(v.slug)}">${soon ? '오픈 알림 신청' : '이 공간 문의'}</a></p>
           </div>
         </article>`;
       }).join('')}
-    </div></section>`;
-  return page({ content, origin, path: '/venues', title: '지점 안내', description: '메자닌 삼성, 북가좌, 한남, 응암(오픈 예정)의 건물 구성과 위치를 비교해 보세요.', body, active: 'venues' });
+      </div>
+    </div></section>
+    <section class="sec sec-tone" aria-labelledby="h-compare"><div class="wrap">
+      <div class="sec-head"><h2 id="h-compare">한눈에 비교</h2></div>
+      <div class="table-scroll"><table class="compare">
+        <thead><tr><th scope="col"></th>${venues.map((v) => `<th scope="col"><a href="/venues/${esc(v.slug)}">${esc(short(v))}</a></th>`).join('')}</tr></thead>
+        <tbody>
+          <tr><th scope="row">위치</th>${venues.map((v) => `<td>${esc(v.district)}</td>`).join('')}</tr>
+          ${keys.filter((k) => venues.some((v) => v.stats.some((x) => x.label === k))).map((k) => `<tr><th scope="row">${k}</th>${venues.map((v) => `<td>${esc(v.stats.find((x) => x.label === k)?.value || '–')}</td>`).join('')}</tr>`).join('')}
+          <tr><th scope="row">가까운 역</th>${venues.map((v) => `<td>${v.access.length ? esc(`${v.access[0].label} ${v.access[0].value}`) : '–'}</td>`).join('')}</tr>
+          <tr><th scope="row">잘 맞는 행사</th>${venues.map((v) => `<td>${v.uses.length ? esc(v.uses.slice(0, 4).join(', ')) : '–'}</td>`).join('')}</tr>
+        </tbody>
+      </table></div>
+    </div></section>
+    ${ctaBand('어느 공간이 맞을지 고민된다면', '행사 내용만 알려 주셔도 맞는 공간과 구성을 함께 제안합니다.')}`;
+  return page({ content, origin, path: '/venues', title: '공간', description: '메자닌 삼성, 북가좌, 한남, 응암(오픈 예정)의 건물 구성과 위치를 비교해 보세요.', body, active: 'venues' });
 }
 
-// ── 지점 상세 ─────────────────────────────────────────────────
+// ── 공간 상세 ─────────────────────────────────────────────────
 export function venuePage(content, origin, v) {
   const s = content.settings;
   const coming = v.status === 'coming';
-  const media = content.media[`venue:${v.slug}`] || [];
+  const media = mediaOf(content, `venue:${v.slug}`);
   const cases = content.cases.filter((c) => c.venue === v.slug);
 
   const head = `<section class="vhead"><div class="wrap">
-    <p class="crumb"><a href="/venues">지점</a></p>
+    <p class="crumb"><a href="/venues">공간</a></p>
+    <p class="en" lang="en">${esc(enName(v))}</p>
     <div class="vhead-row">
-      <div>
-        <h1>${esc(v.name)}</h1>
-        <p class="vhead-en" lang="en">${esc(v.name_en || '')}</p>
-      </div>
+      <h1>${esc(v.name)}</h1>
       ${statusChip(v)}
     </div>
     <p class="vhead-line">${esc(v.headline)}</p>
-    ${v.stats.length ? `<dl class="spec spec-lg">${v.stats.map((x) => `<div><dt>${esc(x.label)}</dt><dd>${esc(x.value)}</dd></div>`).join('')}</dl>` : ''}
+  </div></section>`;
+
+  const first = media[0];
+  const rest = media.slice(1);
+  const shown = rest.slice(0, 8);
+  const photos = media.length ? `<section class="vphotos" aria-label="공간 사진"><div class="wrap" data-gallery>
+      ${galBtn(first, v.name, `<span class="vfig">${imgTag(first, { sm: false, alt: first.caption || v.name, lazy: false, extra: ' fetchpriority="high"' })}${kindTag(first)}</span>`)}
+      ${shown.length ? `<div class="gal">${shown.map((m, i) => galBtn(m, m.caption || `${v.name} 사진 ${i + 2}`, `${imgTag(m, { alt: m.caption || '' })}${kindTag(m)}${i === shown.length - 1 && rest.length > shown.length ? `<span class="gal-more">사진 ${media.length}장 모두 보기</span>` : ''}`)).join('')}</div>` : ''}
+      ${hiddenItems(rest.slice(shown.length))}
+      ${brandNote(media)}
+    </div></section>` : '';
+
+  const spec = `<section class="sec sec-tight vspec"><div class="wrap">
+    ${v.stats.length ? `<dl class="spec">${v.stats.map((x) => `<div><dt>${esc(x.label)}</dt><dd>${esc(x.value)}</dd></div>`).join('')}</dl>` : ''}
     <div class="vhead-cta">
-      <a class="btn btn-point btn-lg" href="/inquiry?venue=${esc(v.slug)}">${coming ? '오픈 알림 신청' : '이 지점 대관 문의'}</a>
+      <a class="btn btn-dark btn-lg" href="/inquiry?venue=${esc(v.slug)}">${coming ? '오픈 알림 신청' : '이 공간 대관 문의'}</a>
       ${v.brochure ? `<a class="btn btn-line btn-lg" href="${esc(v.brochure)}" target="_blank" rel="noopener">공간 소개서 (PDF)</a>` : ''}
       ${v.map?.naver ? `<a class="btn btn-line btn-lg" href="${esc(v.map.naver)}" target="_blank" rel="noopener">네이버 지도</a>` : ''}
     </div>
   </div></section>`;
-
-  const gallery = media.length
-    ? `<section class="sec sec-tight" aria-label="공간 사진"><div class="wrap">
-        <div class="gal gal-${Math.min(media.length, 5)}" data-gallery>
-          ${media.slice(0, 5).map((m, i) => `<button type="button" class="gal-item" data-full="/media/${m.id}" data-cap="${esc(m.caption || '')}"><img src="/media/${m.id}" alt="${esc(m.caption || `${v.name} 사진 ${i + 1}`)}" ${i ? 'loading="lazy"' : ''} width="${m.width || 1600}" height="${m.height || 1067}">${i === 4 && media.length > 5 ? `<span class="gal-more">사진 ${media.length}장 모두 보기</span>` : ''}</button>`).join('')}
-          ${media.slice(5).map((m) => `<button type="button" class="gal-item" hidden data-full="/media/${m.id}" data-cap="${esc(m.caption || '')}"></button>`).join('')}
-        </div>
-      </div></section>`
-    : '';
 
   const about = `<section class="sec sec-tight"><div class="wrap about">
     <div class="about-text">
@@ -254,7 +313,7 @@ export function venuePage(content, origin, v) {
       ${v.features.length ? `<ul class="ticks">${v.features.map((f) => `<li>${esc(f)}</li>`).join('')}</ul>` : ''}
       ${v.uses.length ? `<h3>잘 맞는 행사</h3><p class="tags">${v.uses.map((u) => `<span>${esc(u)}</span>`).join('')}</p>` : ''}
     </div>
-    ${!coming && (v.video || (v.drive_videos || []).length) ? `<div class="about-video">${v.video ? `<button type="button" class="yt" data-yt="${esc(v.video)}" aria-label="${esc(v.name)} 영상 재생"><img src="https://i.ytimg.com/vi/${esc(v.video)}/hqdefault.jpg" alt="" loading="lazy" width="480" height="360"><span class="yt-play" aria-hidden="true"></span></button><p class="yt-cap">${esc(v.name)} 영상</p>` : ''}${driveVideos(v.drive_videos, v.name)}</div>` : ''}
+    ${!coming && (v.video || (v.drive_videos || []).length) ? `<div class="about-video">${v.video ? `<button type="button" class="yt" data-yt="${esc(v.video)}" aria-label="${esc(v.name)} 영상 재생"><img src="https://i.ytimg.com/vi/${esc(v.video)}/hqdefault.jpg" alt="" loading="lazy" width="480" height="360"><span class="play" aria-hidden="true"></span></button><p class="yt-cap">${esc(v.name)} 영상</p>` : ''}${driveVideos(v.drive_videos, v.name)}</div>` : ''}
   </div></section>`;
 
   const rows = (v.buildings || []).flatMap((b) => b.floors.filter((f) => !f.ghost).map((f, i, arr) => `<tr>
@@ -264,16 +323,16 @@ export function venuePage(content, origin, v) {
       <td>${f.desc ? esc(f.desc) : '<span class="muted">문의 시 안내합니다</span>'}</td>
     </tr>`));
 
-  const plan = (v.buildings || []).length ? `<section class="sec sec-mist" aria-labelledby="h-plan"><div class="wrap">
-    <div class="sec-head"><h2 id="h-plan">건물 구성</h2><p>그림에서 층을 누르면 설명이 나옵니다.${v.linked ? ' 파란 선이 건물 사이를 잇는 메자닌입니다.' : ''}</p></div>
+  const plan = (v.buildings || []).length ? `<section class="sec sec-tone" aria-labelledby="h-plan"><div class="wrap">
+    <div class="sec-head"><h2 id="h-plan">건물 구성</h2><p>그림에서 층을 누르면 설명이 나옵니다.${v.linked ? ' 건물 사이의 파란 선이 2층을 잇는 메자닌입니다.' : ''}</p></div>
     <div class="plan">
-      <div class="plan-fig">${sectionSVG(v)}<p class="sd-cap" data-default="${esc(v.headline)}">${esc(v.headline)}</p></div>
+      <div class="plan-fig">${sectionSVG(v)}<p class="sd-cap">${esc(v.headline)}</p></div>
       <div class="table-scroll"><table class="floors">
         <thead><tr><th scope="col">동</th><th scope="col">층</th><th scope="col">면적</th><th scope="col">특징</th></tr></thead>
         <tbody>${rows.join('')}</tbody>
       </table></div>
     </div>
-  </div></section>` : `<section class="sec sec-mist"><div class="wrap"><div class="plan-fig plan-fig-solo">${sectionSVG(v)}</div></div></section>`;
+  </div></section>` : `<section class="sec sec-tone"><div class="wrap"><div class="plan-fig plan-fig-solo">${sectionSVG(v)}</div></div></section>`;
 
   const access = !coming ? `<section class="sec" aria-labelledby="h-access"><div class="wrap two">
     <div>
@@ -284,9 +343,9 @@ export function venuePage(content, origin, v) {
         ${v.parking ? `<div><dt>주차</dt><dd>${esc(v.parking)}</dd></div>` : ''}
       </dl>
       <p class="links">
-        ${v.map?.naver ? `<a class="btn btn-line" href="${esc(v.map.naver)}" target="_blank" rel="noopener">네이버 지도에서 보기</a>` : ''}
-        ${v.map?.kakao ? `<a class="btn btn-line" href="${esc(v.map.kakao)}" target="_blank" rel="noopener">카카오맵에서 보기</a>` : ''}
-        ${!v.map?.naver && !v.map?.kakao ? `<a class="btn btn-line" href="https://map.naver.com/p/search/${encodeURIComponent(v.address)}" target="_blank" rel="noopener">지도에서 주소 검색</a>` : ''}
+        ${v.map?.naver ? `<a class="btn btn-line" href="${esc(v.map.naver)}" target="_blank" rel="noopener">네이버 지도</a>` : ''}
+        ${v.map?.kakao ? `<a class="btn btn-line" href="${esc(v.map.kakao)}" target="_blank" rel="noopener">카카오맵</a>` : ''}
+        ${!v.map?.naver && !v.map?.kakao && v.address ? `<a class="btn btn-line" href="https://map.naver.com/p/search/${encodeURIComponent(v.address)}" target="_blank" rel="noopener">지도에서 주소 검색</a>` : ''}
         ${v.instagram ? `<a class="btn btn-line" href="${esc(v.instagram)}" target="_blank" rel="noopener">지점 인스타그램</a>` : ''}
       </p>
     </div>
@@ -297,14 +356,14 @@ export function venuePage(content, origin, v) {
     </div>
   </div></section>` : '';
 
-  const caseSec = cases.length ? `<section class="sec sec-mist" aria-labelledby="h-vcases"><div class="wrap">
-    <div class="sec-head"><h2 id="h-vcases">${esc(v.name)}에서 열린 행사</h2></div>
-    <div class="cases cases-3">${cases.slice(0, 6).map((c) => caseCard(content, c)).join('')}</div>
+  const caseSec = cases.length ? `<section class="sec sec-tone" aria-labelledby="h-vcases"><div class="wrap">
+    <div class="sec-head sec-head-row"><h2 id="h-vcases">${esc(short(v))}에서 열린 행사</h2><a class="arrow-link" href="/cases">대관 사례 전체 ${ARROW}</a></div>
+    <div class="cases">${cases.slice(0, 3).map((c) => caseCard(content, c)).join('')}</div>
   </div></section>` : '';
 
   const cta = coming
-    ? ctaBand(`${esc(v.name)} 오픈 소식을 먼저 받아보세요`, '연락처를 남겨 두시면 대관이 열릴 때 가장 먼저 안내합니다.', v.slug).replace('대관 문의하기', '오픈 알림 신청')
-    : ctaBand(`${esc(v.name)} 대관을 검토 중이신가요`, '날짜와 대략의 규모만 알려 주셔도 견적을 준비할 수 있습니다.', v.slug);
+    ? ctaBand(`${esc(v.name)} 오픈 소식을<br>먼저 받아보세요`, '연락처를 남겨 두시면 대관이 열릴 때 가장 먼저 안내합니다.', v.slug, '오픈 알림 신청')
+    : ctaBand(`${esc(v.name)} 대관을<br>검토 중이신가요`, '날짜와 대략의 규모만 알려 주셔도 견적을 준비할 수 있습니다.', v.slug);
 
   const jsonLd = coming ? null : {
     '@context': 'https://schema.org',
@@ -320,7 +379,7 @@ export function venuePage(content, origin, v) {
   return page({
     content, origin, path: `/venues/${v.slug}`, title: `${v.name} 대관`, active: 'venues', jsonLd, image: ogImage(content, 'venue', v.slug),
     description: `${v.name}${v.address ? ` (${v.address})` : ''}. ${v.headline}. ${v.uses.length ? v.uses.join(', ') + ' 대관 문의.' : ''}`,
-    body: head + gallery + about + plan + access + caseSec + cta,
+    body: head + photos + spec + about + plan + access + caseSec + cta,
   });
 }
 
@@ -328,21 +387,26 @@ export function venuePage(content, origin, v) {
 export function casesPage(content, origin) {
   const venues = content.venues.filter((v) => content.cases.some((c) => c.venue === v.slug));
   const body = `<section class="phead"><div class="wrap">
+      <p class="en" lang="en">CASES</p>
       <h1>대관 사례</h1>
       <p>메자닌에서 실제로 열린 행사입니다. 비슷한 행사를 준비하고 있다면 어떤 공간을 어떻게 썼는지 참고해 보세요.</p>
       <div class="filters" data-filter role="group" aria-label="지점별 보기">
         <button type="button" class="is-on" data-v="">전체</button>
-        ${venues.map((v) => `<button type="button" data-v="${esc(v.slug)}">${esc(v.name.replace('메자닌 ', ''))}</button>`).join('')}
+        ${venues.map((v) => `<button type="button" data-v="${esc(v.slug)}">${esc(short(v))}</button>`).join('')}
       </div>
     </div></section>
     <section class="sec sec-tight"><div class="wrap caselist">
       ${content.cases.map((c) => {
         const v = venueBy(content, c.venue);
-        const media = content.media[`case:${c.id}`] || [];
+        const media = mediaOf(content, `case:${c.id}`);
         const fig = media.length
-          ? `<div class="gal gal-${Math.min(media.length, 3)}" data-gallery>${media.slice(0, 3).map((m, i) => `<button type="button" class="gal-item" data-full="/media/${m.id}" data-cap="${esc(m.caption || '')}"><img src="/media/${m.id}" alt="${esc(m.caption || `${c.title} 사진 ${i + 1}`)}" loading="lazy" width="${m.width || 1600}" height="${m.height || 1067}">${i === 2 && media.length > 3 ? `<span class="gal-more">사진 ${media.length}장</span>` : ''}</button>`).join('')}${media.slice(3).map((m) => `<button type="button" class="gal-item" hidden data-full="/media/${m.id}" data-cap="${esc(m.caption || '')}"></button>`).join('')}</div>`
+          ? `<div class="cgal" data-gallery>
+              ${galBtn(media[0], c.title, `<span class="cg-main">${imgTag(media[0], { alt: media[0].caption || c.title })}${kindTag(media[0])}</span>`)}
+              ${media.length > 1 ? `<div class="cg-row">${media.slice(1, 4).map((m, i) => galBtn(m, m.caption || c.title, `${imgTag(m, { alt: m.caption || '' })}${i === 2 && media.length > 4 ? `<span class="gal-more">+${media.length - 4}</span>` : ''}`)).join('')}</div>` : ''}
+              ${hiddenItems(media.slice(4))}
+            </div>`
           : c.video
-          ? `<button type="button" class="yt" data-yt="${esc(c.video)}" aria-label="${esc(c.title)} 영상 재생"><img src="https://i.ytimg.com/vi/${esc(c.video)}/hqdefault.jpg" alt="" loading="lazy" width="480" height="360"><span class="yt-play" aria-hidden="true"></span></button>`
+          ? `<button type="button" class="yt" data-yt="${esc(c.video)}" aria-label="${esc(c.title)} 영상 재생"><img src="https://i.ytimg.com/vi/${esc(c.video)}/hqdefault.jpg" alt="" loading="lazy" width="480" height="360"><span class="play" aria-hidden="true"></span></button>`
           : '';
         return `<article class="cdetail${fig ? '' : ' no-fig'}" id="${esc(c.id)}" data-venue="${esc(c.venue)}">
           ${fig ? `<div class="cdetail-fig">${fig}</div>` : ''}
@@ -357,14 +421,14 @@ export function casesPage(content, origin) {
             </dl>
             ${driveVideos(c.drive_videos, c.title)}
             <p class="links">
-              ${v ? `<a class="btn btn-line" href="/inquiry?venue=${esc(v.slug)}&type=${encodeURIComponent(c.type || '')}">비슷한 행사 문의</a>` : ''}
-              ${c.link ? `<a class="more" href="${esc(c.link)}" target="_blank" rel="noopener">행사 안내 페이지</a>` : ''}
+              ${v ? `<a class="arrow-link" href="/inquiry?venue=${esc(v.slug)}&type=${encodeURIComponent(c.type || '')}">비슷한 행사 문의 ${ARROW}</a>` : ''}
+              ${c.link ? `<a class="text-link" href="${esc(c.link)}" target="_blank" rel="noopener">행사 안내 페이지</a>` : ''}
             </p>
           </div>
         </article>`;
       }).join('')}
     </div></section>
-    ${ctaBand('준비 중인 행사를 알려 주세요', '행사 성격에 맞는 지점과 공간 구성을 함께 제안합니다.')}`;
+    ${ctaBand('준비 중인 행사를<br>알려 주세요', '행사 성격에 맞는 공간과 구성을 함께 제안합니다.')}`;
   const firstCase = content.cases.find((c) => ogImage(content, 'case', c.id));
   return page({ content, origin, path: '/cases', title: '대관 사례', description: '메자닌 삼성·북가좌·한남에서 열린 팝업, 마켓, 공연, 네트워킹 파티 사례.', body, active: 'cases', image: firstCase ? ogImage(content, 'case', firstCase.id) : '' });
 }
@@ -373,6 +437,7 @@ export function casesPage(content, origin) {
 export function inquiryPage(content, origin) {
   const venues = content.venues.map((v) => ({ slug: v.slug, name: v.name, status: v.status, district: v.district, zones: v.zone_options || [] }));
   const body = `<section class="phead"><div class="wrap">
+      <p class="en" lang="en">INQUIRY</p>
       <h1>대관 문의·견적 요청</h1>
       <p>아는 만큼만 적어 주세요. 정해지지 않은 항목은 비워 두셔도 접수됩니다. 접수 후 발급되는 접수번호로 견적과 답변을 확인할 수 있습니다.</p>
     </div></section>
@@ -398,6 +463,7 @@ export function inquiryPage(content, origin) {
             <div class="field"><label for="time_start">시작 시간</label><input type="time" id="time_start" name="time_start" step="1800"></div>
             <div class="field"><label for="time_end">종료 시간</label><input type="time" id="time_end" name="time_end" step="1800"></div>
           </div>
+          <p class="avail" id="avail" aria-live="polite" hidden></p>
           <p class="hint">설치와 철수에 필요한 날짜까지 포함해서 적어 주세요.</p>
           <label class="check"><input type="checkbox" name="date_flexible" value="1"><span>날짜를 조정할 수 있습니다</span></label>
         </fieldset>
@@ -438,14 +504,14 @@ export function inquiryPage(content, origin) {
         </fieldset>
 
         <p class="form-error" id="inq-error" role="alert" hidden></p>
-        <button class="btn btn-point btn-lg btn-block" type="submit" id="inq-submit">문의 접수하기</button>
+        <button class="btn btn-dark btn-lg btn-block" type="submit" id="inq-submit">문의 접수하기</button>
       </form>
 
       <div id="inq-done" class="done" hidden tabindex="-1">
         <h2>문의가 접수됐습니다</h2>
         <p>접수번호를 보관해 주세요. 견적과 답변은 아래 주소에서 확인할 수 있습니다.</p>
         <p class="done-code"><span>접수번호</span><strong id="done-code"></strong></p>
-        <p class="links"><a class="btn btn-point btn-lg" id="done-link" href="/my">내 문의 확인하기</a><button class="btn btn-line btn-lg" type="button" id="done-copy">조회 주소 복사</button></p>
+        <p class="links"><a class="btn btn-dark btn-lg" id="done-link" href="/my">내 문의 확인하기</a><button class="btn btn-line btn-lg" type="button" id="done-copy">조회 주소 복사</button></p>
         <p class="hint">조회 주소를 잃어버려도 접수번호와 연락처로 다시 찾을 수 있습니다.</p>
       </div>
 
@@ -460,12 +526,13 @@ export function inquiryPage(content, origin) {
       </aside>
     </div></section>
     <script type="application/json" id="venues-data">${JSON.stringify(venues).replace(/</g, '\\u003c')}</script>`;
-  return page({ content, origin, path: '/inquiry', title: '대관 문의·견적 요청', description: '메자닌 삼성·북가좌·한남 대관 문의와 견적 요청. 지점, 일정, 행사 내용을 남기면 견적서를 보내드립니다.', body, scripts: ['/assets/js/inquiry.js'] });
+  return page({ content, origin, path: '/inquiry', title: '대관 문의·견적 요청', description: '메자닌 삼성·북가좌·한남 대관 문의와 견적 요청. 지점, 일정, 행사 내용을 남기면 견적서를 보내드립니다.', body, active: 'inquiry', scripts: ['/assets/js/inquiry.js'], bar: false });
 }
 
 // ── 내 문의 조회 ──────────────────────────────────────────────
 export function myPage(content, origin) {
   const body = `<section class="phead"><div class="wrap">
+      <p class="en" lang="en">MY INQUIRY</p>
       <h1>내 문의 조회</h1>
       <p>접수한 문의의 진행 상황과 견적서를 확인하고, 담당자와 메시지를 주고받을 수 있습니다.</p>
     </div></section>
@@ -476,17 +543,18 @@ export function myPage(content, origin) {
           <div class="field"><label for="l-phone">문의할 때 적은 연락처</label><input type="tel" id="l-phone" name="phone" placeholder="010-0000-0000" inputmode="tel" required></div>
         </div>
         <p class="form-error" id="lookup-error" role="alert" hidden></p>
-        <button class="btn btn-point btn-lg" type="submit">문의 찾기</button>
+        <button class="btn btn-dark btn-lg" type="submit">문의 찾기</button>
       </form>
       <div id="my" hidden></div>
     </div></section>`;
-  return page({ content, origin, path: '/my', title: '내 문의 조회', body, active: 'my', scripts: ['/assets/js/my.js'], noindex: true });
+  return page({ content, origin, path: '/my', title: '내 문의 조회', body, active: 'my', scripts: ['/assets/js/my.js'], noindex: true, bar: false });
 }
 
 // ── 이용 안내 ─────────────────────────────────────────────────
 export function guidePage(content, origin) {
   const ch = content.settings.channels;
   const body = `<section class="phead"><div class="wrap">
+      <p class="en" lang="en">GUIDE</p>
       <h1>이용 안내</h1>
       <p>대관 절차와 자주 받는 질문을 모았습니다.</p>
     </div></section>
@@ -528,7 +596,7 @@ export function notFoundPage(content, origin, path) {
   const body = `<section class="phead"><div class="wrap">
       <h1>페이지를 찾을 수 없습니다</h1>
       <p>주소가 바뀌었거나 없는 페이지입니다.</p>
-      <p class="links"><a class="btn btn-point" href="/">홈으로 가기</a><a class="btn btn-line" href="/venues">지점 보기</a></p>
+      <p class="links"><a class="btn btn-dark" href="/">홈으로 가기</a><a class="btn btn-line" href="/venues">공간 보기</a></p>
     </div></section>`;
   return page({ content, origin, path, title: '페이지를 찾을 수 없습니다', body, noindex: true });
 }
