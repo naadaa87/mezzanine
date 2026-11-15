@@ -94,6 +94,7 @@
           <div class="g2" style="margin-top:14px"><label class="f"><span>주차</span><input type="text" name="parking" value="${esc(v.parking || '')}"></label><label class="f"><span>유튜브 영상 ID <small>주소의 v= 뒤 11자</small></span><input type="text" name="video" value="${esc(v.video || '')}"></label>
             <label class="f"><span>네이버 지도 링크</span><input type="url" name="map_naver" value="${esc(v.map?.naver || '')}"></label><label class="f"><span>카카오맵 링크</span><input type="url" name="map_kakao" value="${esc(v.map?.kakao || '')}"></label>
             <label class="f"><span>공간 소개서 링크</span><input type="url" name="brochure" value="${esc(v.brochure || '')}"></label><label class="f"><span>지점 인스타그램</span><input type="url" name="instagram" value="${esc(v.instagram || '')}"></label></div>
+          <label class="f"><span>드라이브 영상 ID <small>쉼표로 구분</small></span><input type="text" name="drive_videos" value="${esc((v.drive_videos || []).join(', '))}"></label>
         </section>
         <div class="savebar"><button type="button" class="btn btn-danger" id="v-del" style="margin-right:auto">지점 삭제</button><button class="btn btn-point" type="submit">저장</button></div>
       </form>`;
@@ -111,7 +112,7 @@
         name: d.name.trim(), name_en: d.name_en.trim(), status: d.status, district: d.district.trim(), address: d.address.trim(), color: /^#[0-9a-fA-F]{6}$/.test(d.color.trim()) ? d.color.trim() : v.color,
         headline: d.headline.trim(), summary: d.summary.trim(), stats: readKv('v-stats').slice(0, 4), buildings: textToBuildings(d.buildings, v.buildings), linked: !!d.linked, courtyard: !!d.courtyard,
         zone_options: commas(d.zone_options), features: lines(d.features), uses: commas(d.uses), access: readKv('v-access'), parking: d.parking.trim(), video: d.video.trim(),
-        map: { naver: d.map_naver.trim(), kakao: d.map_kakao.trim() }, brochure: d.brochure.trim(), instagram: d.instagram.trim(),
+        map: { naver: d.map_naver.trim(), kakao: d.map_kakao.trim() }, brochure: d.brochure.trim(), instagram: d.instagram.trim(), drive_videos: commas(d.drive_videos),
       });
       try { await saveContent('venues', venues); } catch (ex) { toast(ex.message, true); }
     });
@@ -153,7 +154,8 @@
     const cur = decodeURIComponent(parts.join('/') || owners[0]?.key || '');
     const [type, ...rest] = cur.split(':');
     const ownerId = rest.join(':');
-    main.innerHTML = `<div class="head"><div><h1>사진</h1><p>지점과 대관 사례에 보여 줄 사진을 올립니다. 첫 번째 사진이 대표 사진으로 쓰입니다.</p></div></div>
+    main.innerHTML = `<div class="head"><div><h1>사진</h1><p>지점과 대관 사례에 보여 줄 사진을 올립니다. 첫 번째 사진이 대표 사진으로 쓰입니다.</p></div>
+        <div class="head-actions"><button class="btn btn-point" type="button" id="p-drive">구글드라이브에서 가져오기</button></div></div>
       <div class="bar"><select id="p-owner" aria-label="사진을 넣을 곳">${owners.map((o) => `<option value="${esc(o.key)}"${o.key === cur ? ' selected' : ''}>${esc(o.label)}</option>`).join('')}</select></div>
       <div class="drop" id="p-drop"><b>사진을 여기에 끌어다 놓거나 눌러서 선택하세요</b>여러 장을 한 번에 올릴 수 있습니다. 큰 사진은 자동으로 줄여서 저장합니다.
         <input type="file" id="p-file" accept="image/*" multiple hidden><p class="progress" id="p-prog" hidden></p></div>
@@ -165,10 +167,11 @@
       grid.innerHTML = items.length ? items.map((p, i) => `<div class="photo" data-id="${p.id}"><img src="/media/${p.id}" alt="" loading="lazy">
         <div class="photo-body"><input type="text" value="${esc(p.caption || '')}" placeholder="사진 설명(선택)" maxlength="120" aria-label="사진 설명">
           <div class="photo-act"><button type="button" class="btn btn-sm" data-mv="-1" aria-label="앞으로"${i === 0 ? ' disabled' : ''}>←</button><button type="button" class="btn btn-sm" data-mv="1" aria-label="뒤로"${i === items.length - 1 ? ' disabled' : ''}>→</button>
-            <span class="muted small" style="margin:auto">${i === 0 ? '대표' : ''} ${Math.round(p.size / 1024)}KB</span><button type="button" class="btn btn-sm btn-danger" data-rm>삭제</button></div></div></div>`).join('')
+            <span class="muted small" style="margin:auto">${i === 0 ? '대표' : ''} ${p.size ? `${Math.round(p.size / 1024)}KB` : (p.src || '').startsWith('drive:') ? '드라이브' : ''}</span><button type="button" class="btn btn-sm btn-danger" data-rm>삭제</button></div></div></div>`).join('')
         : '<p class="muted">아직 올린 사진이 없습니다.</p>';
     };
     main.querySelector('#p-owner').addEventListener('change', (e) => { location.hash = `#/photos/${e.target.value}`; });
+    main.querySelector('#p-drive').addEventListener('click', () => driveImport(type, ownerId, owners.find((o) => o.key === cur)?.label || '', load));
     const drop = main.querySelector('#p-drop');
     const fileInput = main.querySelector('#p-file');
     const prog = main.querySelector('#p-prog');
@@ -223,6 +226,85 @@
     if (owners.length) await load();
   };
 
+  // ── 구글드라이브에서 가져오기 ─────────────────────────────────
+  function driveImport(type, ownerId, label, done) {
+    const m = modal({
+      wide: true,
+      title: '구글드라이브에서 가져오기',
+      body: `<p class="muted" style="margin-bottom:12px">공유 설정이 "링크가 있는 모든 사용자"인 폴더의 링크를 붙여 넣으세요. 고른 사진은 <b>${esc(label)}</b>에 추가되고, 서버가 사진을 받아 사이트에 따로 저장합니다.</p>
+        <p class="err" hidden></p>
+        <div class="bar"><input type="url" id="d-url" placeholder="https://drive.google.com/drive/folders/..." style="flex:1;min-width:240px" aria-label="드라이브 폴더 링크"><button type="button" class="btn" id="d-load">폴더 열기</button></div>
+        <div id="d-list"></div>`,
+      foot: '<span class="muted small left" id="d-count"></span><button type="button" class="btn" data-cancel>닫기</button><button type="button" class="btn btn-point" id="d-go" disabled>가져오기</button>',
+    });
+    let items = [];
+    const sel = new Set();
+    const count = () => {
+      const ni = items.filter((x) => x.kind === 'image' && sel.has(x.id)).length;
+      const nv = items.filter((x) => x.kind === 'video' && sel.has(x.id)).length;
+      m.$('#d-count').textContent = ni || nv ? `사진 ${ni}장${nv ? `, 영상 ${nv}개` : ''} 선택` : '';
+      m.$('#d-go').disabled = !(ni || nv);
+    };
+    const draw = () => {
+      const imgs = items.filter((x) => x.kind === 'image');
+      const vids = items.filter((x) => x.kind === 'video');
+      m.$('#d-list').innerHTML = `
+        ${imgs.length ? `<div class="bar" style="margin-top:6px"><b>사진 ${imgs.length}장</b><button type="button" class="btn btn-sm" data-all="image">모두 선택</button><button type="button" class="btn btn-sm" data-none>선택 해제</button></div>
+          <div class="photos" style="grid-template-columns:repeat(auto-fill,minmax(130px,1fr));max-height:52vh;overflow:auto">${imgs.map((x) => `<label class="photo" style="cursor:pointer;${sel.has(x.id) ? 'outline:3px solid var(--point)' : ''}"><img src="https://drive.google.com/thumbnail?id=${esc(x.id)}&sz=w320" alt="" loading="lazy"><span class="photo-body small" style="display:flex;gap:6px;align-items:center"><input type="checkbox" data-id="${esc(x.id)}"${sel.has(x.id) ? ' checked' : ''}><span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(x.name)}</span></span></label>`).join('')}</div>` : ''}
+        ${vids.length ? `<p style="margin-top:14px"><b>영상 ${vids.length}개</b> <span class="muted small">고른 영상은 해당 페이지에 "현장 영상"으로 붙고, 드라이브 플레이어로 재생됩니다.</span></p>
+          <p>${vids.map((x) => `<label class="ck"><input type="checkbox" data-id="${esc(x.id)}"${sel.has(x.id) ? ' checked' : ''}>${esc(x.name)}</label>`).join('')}</p>` : ''}
+        ${!imgs.length && !vids.length ? '<p class="muted">이 폴더에는 가져올 사진이나 영상이 없습니다.</p>' : ''}`;
+      count();
+    };
+    m.$('#d-list').addEventListener('change', (e) => {
+      const id = e.target.dataset && e.target.dataset.id;
+      if (!id) return;
+      if (e.target.checked) sel.add(id); else sel.delete(id);
+      const card = e.target.closest('.photo');
+      if (card) card.style.outline = e.target.checked ? '3px solid var(--point)' : '';
+      count();
+    });
+    m.$('#d-list').addEventListener('click', (e) => {
+      if (e.target.closest('[data-all]')) { items.filter((x) => x.kind === 'image').forEach((x) => sel.add(x.id)); draw(); }
+      if (e.target.closest('[data-none]')) { sel.clear(); draw(); }
+    });
+    const err = m.$('.err');
+    m.$('#d-load').addEventListener('click', async () => {
+      err.hidden = true;
+      m.$('#d-list').innerHTML = '<p class="muted">폴더를 여는 중입니다.</p>';
+      try {
+        const d = await api(`/drive/list?url=${encodeURIComponent(m.$('#d-url').value)}`);
+        items = d.items;
+        sel.clear();
+        draw();
+      } catch (ex) { m.$('#d-list').innerHTML = ''; err.textContent = ex.message; err.hidden = false; }
+    });
+    m.$('#d-url').addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); m.$('#d-load').click(); } });
+    m.$('[data-cancel]').addEventListener('click', m.close);
+    m.$('#d-go').addEventListener('click', async () => {
+      const images = items.filter((x) => x.kind === 'image' && sel.has(x.id)).map((x) => ({ id: x.id, caption: '' }));
+      const videos = items.filter((x) => x.kind === 'video' && sel.has(x.id)).map((x) => x.id);
+      const go = m.$('#d-go');
+      go.disabled = true;
+      err.hidden = true;
+      try {
+        const r = await api('/media/drive', { method: 'POST', body: { owner_type: type, owner_id: ownerId, images, videos } });
+        // 서버가 드라이브에서 사진을 받아 저장하도록 한 장씩 열어 둡니다
+        let ok = 0;
+        for (let n = 0; n < r.ids.length; n++) {
+          go.textContent = `사진 저장 중 ${n + 1}/${r.ids.length}`;
+          const res = await fetch(`/media/${r.ids[n]}`).catch(() => null);
+          if (res && res.ok) ok++;
+        }
+        if (videos.length) await reloadContent();
+        m.close();
+        toast(ok < r.ids.length ? `사진 ${ok}장을 저장했습니다. ${r.ids.length - ok}장은 드라이브에서 받지 못했습니다.` : `사진 ${ok}장${videos.length ? `, 영상 ${videos.length}개` : ''}를 가져왔습니다`, ok < r.ids.length);
+        done();
+      } catch (ex) { err.textContent = ex.message; err.hidden = false; go.disabled = false; go.textContent = '가져오기'; }
+    });
+    m.$('#d-url').focus();
+  }
+
   // ── 대관 사례 ────────────────────────────────────────────────
   views.cases = async (main) => {
     const cases = JSON.parse(JSON.stringify(S.content.cases));
@@ -234,11 +316,12 @@
             <label class="f"><span>행사 유형</span><input type="text" data-k="type" value="${esc(c.type || '')}"></label><label class="f"><span>일자</span><input type="text" data-k="date" value="${esc(c.date || '')}" placeholder="2026.05.29 – 05.31"></label></div>
           <label class="f"><span>소개</span><textarea data-k="summary" rows="2">${esc(c.summary || '')}</textarea></label>
           <div class="g4"><label class="f"><span>사용 공간</span><input type="text" data-k="scope" value="${esc(c.scope || '')}"></label><label class="f"><span>규모·운영 <small>쉼표 구분</small></span><input type="text" data-k="facts" value="${esc((c.facts || []).join(', '))}"></label>
-            <label class="f"><span>유튜브 영상 ID</span><input type="text" data-k="video" value="${esc(c.video || '')}"></label><label class="f"><span>관련 링크</span><input type="url" data-k="link" value="${esc(c.link || '')}"></label></div></div>`).join('')}`;
+            <label class="f"><span>유튜브 영상 ID</span><input type="text" data-k="video" value="${esc(c.video || '')}"></label><label class="f"><span>관련 링크</span><input type="url" data-k="link" value="${esc(c.link || '')}"></label></div>
+          <label class="f"><span>드라이브 영상 ID <small>쉼표로 구분. 사진 → 구글드라이브에서 가져오기로도 추가됩니다</small></span><input type="text" data-k="drive_videos" value="${esc((c.drive_videos || []).join(', '))}"></label></div>`).join('')}`;
     };
     const collect = () => main.querySelectorAll('.rowed').forEach((el) => {
       const c = cases[Number(el.dataset.i)];
-      el.querySelectorAll('[data-k]').forEach((inp) => { c[inp.dataset.k] = inp.dataset.k === 'facts' ? commas(inp.value) : inp.value.trim(); });
+      el.querySelectorAll('[data-k]').forEach((inp) => { c[inp.dataset.k] = ['facts', 'drive_videos'].includes(inp.dataset.k) ? commas(inp.value) : inp.value.trim(); });
     });
     draw();
     main.addEventListener('click', async (e) => {

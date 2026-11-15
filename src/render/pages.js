@@ -22,6 +22,19 @@ const USE_ROWS = [
   ['단기 임대·카페 운영', ['단기 임대', '카페']],
 ];
 
+// 구글드라이브 영상: 미리보기 이미지를 누르면 드라이브 플레이어가 열립니다.
+function driveVideos(ids, label) {
+  if (!ids || !ids.length) return '';
+  return `<div class="dvs"><h3>현장 영상</h3><div class="dv-grid">${ids
+    .map((id, i) => `<button type="button" class="dv" data-dv="${esc(id)}" aria-label="${esc(label)} 영상 ${i + 1} 재생"><img src="/media/dv/${esc(id)}" alt="" loading="lazy" width="480" height="270"><span class="yt-play" aria-hidden="true"></span></button>`)
+    .join('')}</div></div>`;
+}
+
+const ogImage = (content, type, id) => {
+  const m = content.media[`${type}:${id}`];
+  return m && m.length ? `/media/${m[0].id}` : '';
+};
+
 const venueSpec = (v) => v.stats.slice(0, 3).map((s) => `<span><b>${esc(s.value)}</b> ${esc(s.label)}</span>`).join('');
 
 function caseCard(content, c, { heading = 'h3' } = {}) {
@@ -241,7 +254,7 @@ export function venuePage(content, origin, v) {
       ${v.features.length ? `<ul class="ticks">${v.features.map((f) => `<li>${esc(f)}</li>`).join('')}</ul>` : ''}
       ${v.uses.length ? `<h3>잘 맞는 행사</h3><p class="tags">${v.uses.map((u) => `<span>${esc(u)}</span>`).join('')}</p>` : ''}
     </div>
-    ${v.video && !coming ? `<div class="about-video"><button type="button" class="yt" data-yt="${esc(v.video)}" aria-label="${esc(v.name)} 영상 재생"><img src="https://i.ytimg.com/vi/${esc(v.video)}/hqdefault.jpg" alt="" loading="lazy" width="480" height="360"><span class="yt-play" aria-hidden="true"></span></button><p class="yt-cap">${esc(v.name)} 영상</p></div>` : ''}
+    ${!coming && (v.video || (v.drive_videos || []).length) ? `<div class="about-video">${v.video ? `<button type="button" class="yt" data-yt="${esc(v.video)}" aria-label="${esc(v.name)} 영상 재생"><img src="https://i.ytimg.com/vi/${esc(v.video)}/hqdefault.jpg" alt="" loading="lazy" width="480" height="360"><span class="yt-play" aria-hidden="true"></span></button><p class="yt-cap">${esc(v.name)} 영상</p>` : ''}${driveVideos(v.drive_videos, v.name)}</div>` : ''}
   </div></section>`;
 
   const rows = (v.buildings || []).flatMap((b) => b.floors.filter((f) => !f.ghost).map((f, i, arr) => `<tr>
@@ -305,7 +318,7 @@ export function venuePage(content, origin, v) {
   };
 
   return page({
-    content, origin, path: `/venues/${v.slug}`, title: `${v.name} 대관`, active: 'venues', jsonLd,
+    content, origin, path: `/venues/${v.slug}`, title: `${v.name} 대관`, active: 'venues', jsonLd, image: ogImage(content, 'venue', v.slug),
     description: `${v.name}${v.address ? ` (${v.address})` : ''}. ${v.headline}. ${v.uses.length ? v.uses.join(', ') + ' 대관 문의.' : ''}`,
     body: head + gallery + about + plan + access + caseSec + cta,
   });
@@ -342,6 +355,7 @@ export function casesPage(content, origin) {
               ${c.scope ? `<div><dt>사용 공간</dt><dd>${esc(c.scope)}</dd></div>` : ''}
               ${(c.facts || []).length ? `<div><dt>규모·운영</dt><dd>${c.facts.map(esc).join(', ')}</dd></div>` : ''}
             </dl>
+            ${driveVideos(c.drive_videos, c.title)}
             <p class="links">
               ${v ? `<a class="btn btn-line" href="/inquiry?venue=${esc(v.slug)}&type=${encodeURIComponent(c.type || '')}">비슷한 행사 문의</a>` : ''}
               ${c.link ? `<a class="more" href="${esc(c.link)}" target="_blank" rel="noopener">행사 안내 페이지</a>` : ''}
@@ -351,7 +365,8 @@ export function casesPage(content, origin) {
       }).join('')}
     </div></section>
     ${ctaBand('준비 중인 행사를 알려 주세요', '행사 성격에 맞는 지점과 공간 구성을 함께 제안합니다.')}`;
-  return page({ content, origin, path: '/cases', title: '대관 사례', description: '메자닌 삼성·북가좌·한남에서 열린 팝업, 마켓, 공연, 네트워킹 파티 사례.', body, active: 'cases' });
+  const firstCase = content.cases.find((c) => ogImage(content, 'case', c.id));
+  return page({ content, origin, path: '/cases', title: '대관 사례', description: '메자닌 삼성·북가좌·한남에서 열린 팝업, 마켓, 공연, 네트워킹 파티 사례.', body, active: 'cases', image: firstCase ? ogImage(content, 'case', firstCase.id) : '' });
 }
 
 // ── 대관 문의 ─────────────────────────────────────────────────

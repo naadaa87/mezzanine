@@ -276,7 +276,22 @@ export const DEFAULTS = {
         '빵모닝이 연 디저트·베이커리 마켓입니다. 22개 브랜드가 사흘 동안 참여했고, 브랜드별 QR 웨이팅으로 대기 줄을 건물 안팎에 나눠 운영했습니다.',
       facts: ['참여 브랜드 22곳', '3일간 운영', '오전 11시 – 오후 6시'],
       video: '',
+      drive_videos: ['1UwwadvzQJ80keF5d1Wc2uwLfff-xhctI'],
       link: 'https://nutrigram.notion.site/3657ed94f698805a9453d6de6706551d',
+    },
+    {
+      id: 'live-stage',
+      title: '밴드 라이브 공연',
+      venue: 'bukgajwa',
+      type: '공연·쇼케이스',
+      date: '',
+      scope: 'A동 공연장',
+      summary:
+        'LED 백스크린과 무대 조명을 갖춘 A동 공연장에서 밴드 공연과 쇼케이스가 여러 차례 열렸습니다. 객석을 무대 가까이 배치할 수 있고, 리셉션이나 굿즈 판매는 다른 층과 동에서 나눠 운영할 수 있습니다.',
+      facts: ['LED 백스크린', '무대 조명', '객석 배치 공연'],
+      video: '',
+      drive_videos: ['1knH721QM0_ducH8EB0heXEydkN_ETTG6', '134KbpICbDT8foWHz_h1ITVm_t_BKvXCO', '1VMA6ShRlSvP35haz_jP44n9qfapI6vzY'],
+      link: '',
     },
     {
       id: 'seoul-vibes-union-days',
@@ -292,27 +307,15 @@ export const DEFAULTS = {
       link: '',
     },
     {
-      id: 'live-stage',
-      title: '지하 공연장 라이브',
-      venue: 'bukgajwa',
-      type: '공연·쇼케이스',
-      date: '',
-      scope: 'A동 지하 1층',
-      summary:
-        'LED 백스크린이 있는 A동 지하 공연장에서 여러 차례 공연이 열렸습니다. 공연은 지하에서, 리셉션과 굿즈 판매는 1층에서 나눠 진행할 수 있습니다.',
-      facts: ['LED 백스크린', '지하 40평 공연장'],
-      video: '',
-      link: '',
-    },
-    {
       id: 'children-day',
-      title: '어린이를 어린이답게',
+      title: 'KIDS PLAY FESTIVAL · 어린이를 어린이답게',
       venue: 'bukgajwa',
       type: '브랜드 행사·런칭',
-      date: '5월 5일 어린이날',
-      scope: '',
-      summary: '패브릭토리가 어린이날에 맞춰 준비한 가족 행사입니다.',
-      facts: ['어린이날 가족 행사'],
+      date: '2026.05.05',
+      scope: 'A·B·C동 전관과 중정',
+      summary:
+        '패브릭토리가 어린이날에 연 키즈 페스티벌입니다. A동 1층은 자유체험존, 2층은 클래스존, B동은 푸드와 마켓, 중정은 브랜드 마켓, C동은 브랜드 팝업으로 나눠 건물 전체를 하나의 축제장으로 썼습니다.',
+      facts: ['오전 11시 – 오후 5시', '키즈 클래스·북 콘서트 12개 이상', '동별로 프로그램 구분'],
       video: '',
       link: '',
     },
@@ -364,4 +367,56 @@ export const DEFAULTS = {
 
   // 견적서 작성 시 불러다 쓰는 요금 항목. 관리자 화면에서 관리합니다.
   rates: [],
+};
+
+// 처음 배포했을 때 넣어 두는 기본 사진. 구글드라이브 공유 폴더의 파일을 서버가 처음 열 때 한 번 받아 D1에 저장합니다.
+// 관리자에서 지우거나 순서를 바꾸면 그대로 유지되고, 다시 채워지지 않습니다.
+export const SEED_MEDIA_VERSION = 1;
+const D = {
+  B001: '10Mu3JHmTj-rEE2EaaEU4O4pIklaoLGct', B002: '1cnM1GSIXcFp4xuO6B9kgzhobuFMJwDrM', B003: '1GQp0KRKOBPyCu2Adbvj_BPgrffXu4zoi',
+  B004: '1a5h2F2qo7_MTJncoCxeYDNAMp0SZ9pzT', B005: '18Dz-iaGH7zSCV6XRRECDFeyHdjJi30Y-', B006: '1tdwR2k-klF4qeYc91c6uEJKV8NOVPQxz',
+  G008: '1uqyq5xTrGuJjCSwZkNxt2_Xo5XIwKYJs', G010: '1iSd38622tK92DWKLOix3clEcRgjmnOkN', G011: '1fuKRrgZF8sj96D7zU6gLlMxD3b4jAG0P',
+  G013: '1QWHF0P8FPa405X7E9h-4QiQaJxdRlmdD', G015: '1SLawgP8tRXGKPODmeZYJBn6oANNE9ZzG', G020: '1dtPs9m7wB5XjYFAw1P2vCVXQSrsTqyXu',
+  G025: '1ShF0muuYiCrhOGdgHYXjsMxjpC3vm5LK', P016: '1Gh_0ZBmGp2F2pckjryH_uY9ks1K3mmmh', P061: '17WtTCRY8-sKIDjTnxJEvkV3TePFrdSYX',
+  P087: '1sas-Fa3QynR5A5aFJNiuXy1umhXZgC37', P112: '1xuaKpKdkASs8TErGxKciybzdvMXbEzez', K006: '1gb8aK56aFCBfsDi_ZKQzkC77djf9yTbh',
+  K015: '1RcNgtenbIleKCkeNYeYCPElgoOISD566', K031: '1_wsMFbWRnN862lc-UmanqWFtwg0jnGE4',
+};
+export const SEED_MEDIA = {
+  'venue:bukgajwa': [
+    [D.B002, 'A동 정면, 응암로 쪽 유리 전면'],
+    [D.G015, 'A동 공연장, LED 백스크린과 무대 조명'],
+    [D.B005, 'A동 내부, 마켓 행사 중'],
+    [D.G008, '공연장 객석'],
+    [D.B001, '빵력장터 당일 A동 앞'],
+    [D.B006, '마켓 부스 배치'],
+    [D.G010, '밴드 공연'],
+    [D.K015, '유리로 둘러싸인 내부'],
+    [D.P061, '공연 무대'],
+    [D.B004, '행사 당일 대기 줄'],
+  ],
+  'case:bbangryeok-market': [
+    [D.B001, 'A동 앞 대기 줄'],
+    [D.B005, 'A동 내부 마켓'],
+    [D.B006, '브랜드 부스'],
+    [D.B002, 'A동 정면'],
+    [D.B003, '응암로를 따라 선 대기 줄'],
+    [D.B004, '대기 줄'],
+  ],
+  'case:live-stage': [
+    [D.G010, ''],
+    [D.G015, ''],
+    [D.G020, ''],
+    [D.G011, ''],
+    [D.G013, ''],
+    [D.G025, ''],
+    [D.P016, ''],
+    [D.P061, ''],
+    [D.P087, ''],
+    [D.P112, ''],
+    [D.G008, '객석에서 본 무대'],
+  ],
+  'case:children-day': [
+    [D.K006, '행사 포스터 · 패브릭토리'],
+    [D.K031, '행사 안내 포스터 · 패브릭토리'],
+  ],
 };

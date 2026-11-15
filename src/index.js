@@ -1,6 +1,6 @@
 import { fail } from './util.js';
 import { getContent } from './db.js';
-import { handlePublicApi, serveMedia } from './api-public.js';
+import { handlePublicApi, serveMedia, serveVideoPoster } from './api-public.js';
 import { handleAdminApi } from './api-admin.js';
 import { html } from './render/layout.js';
 import { homePage, venuesPage, venuePage, casesPage, inquiryPage, myPage, guidePage, notFoundPage } from './render/pages.js';
@@ -15,6 +15,8 @@ export default {
 
       const media = p.match(/^\/media\/(\d+)$/);
       if (media) return await serveMedia(request, env, ctx, media[1]);
+      const poster = p.match(/^\/media\/dv\/([A-Za-z0-9_-]{20,80})$/);
+      if (poster) return await serveVideoPoster(request, env, ctx, poster[1]);
 
       if (request.method !== 'GET' && request.method !== 'HEAD') return new Response('Method not allowed', { status: 405 });
 

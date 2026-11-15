@@ -2,6 +2,7 @@ import { json, fail, readJson, clip, normPhone, isDate, isTime, toInt, nowIso, k
 import { ensureSchema, getContent, logActivity, rateLimit } from './db.js';
 import { sameOrigin } from './auth.js';
 import { notify } from './notify.js';
+import { fetchDriveImage, DRIVE_ID } from './drive.js';
 import { EVENT_TYPES, INQUIRY_STATUS } from './seed.js';
 
 const venueName = (content, slug) => content.venues.find((v) => v.slug === slug)?.name || '지점 미정';
@@ -225,7 +226,7 @@ export async function handlePublicApi(request, env, ctx, url) {
   return fail(404, '없는 주소입니다.');
 }
 
-// 업로드된 사진 제공
+// 업로드된 사진 제공. 구글드라이브에서 가져온 사진은 처음 열 때 받아서 D1에 저장해 둡니다.
 export async function serveMedia(request, env, ctx, id) {
   const cache = caches.default;
   const key = new Request(new URL(`/media/${id}`, request.url).toString());
@@ -236,15 +237,55 @@ export async function serveMedia(request, env, ctx, id) {
   let row;
   try {
     await ensureSchema(env);
-    row = await env.DB.prepare('SELECT mime, data FROM media WHERE id=?').bind(toInt(id)).first();
+    row = await env.DB.prepare('SELECT id, mime, data, src FROM media WHERE id=?').bind(toInt(id)).first();
   } catch {
     row = null;
   }
-  if (!row || !row.data) return new Response('Not found', { status: 404 });
-  const body = row.data instanceof ArrayBuffer ? row.data : new Uint8Array(row.data);
+  if (!row) return new Response('Not found', { status: 404 });
+  let body;
+  let type = row.mime || 'image/webp';
+  if (row.data) {
+    body = row.data instanceof ArrayBuffer ? row.data : new Uint8Array(row.data);
+  } else if (String(row.src || '').startsWith('drive:')) {
+    const img = await fetchDriveImage(row.src.slice(6));
+    if (!img) return new Response('Not available', { status: 404, headers: { 'cache-control': 'no-store' } });
+    body = img.buf;
+    type = img.type;
+    if (img.buf.byteLength <= 1_900_000) {
+      ctx.waitUntil(
+        env.DB.prepare('UPDATE media SET data=?, mime=?, width=?, height=?, size=? WHERE id=? AND data IS NULL')
+          .bind(img.buf, img.type, img.w || 0, img.h || 0, img.buf.byteLength, row.id)
+          .run()
+          .catch(() => {})
+      );
+    }
+  } else {
+    return new Response('Not found', { status: 404 });
+  }
   const res = new Response(body, {
-    headers: { 'content-type': row.mime || 'image/webp', 'cache-control': 'public, max-age=31536000, immutable' },
+    headers: { 'content-type': type, 'cache-control': 'public, max-age=31536000, immutable' },
   });
+  try {
+    ctx.waitUntil(cache.put(key, res.clone()));
+  } catch {}
+  return res;
+}
+
+// 드라이브 영상의 미리보기 이미지. 사이트에 등록된 영상만 제공합니다.
+export async function serveVideoPoster(request, env, ctx, driveId) {
+  if (!DRIVE_ID.test(driveId)) return new Response('Not found', { status: 404 });
+  const cache = caches.default;
+  const key = new Request(new URL(`/media/dv/${driveId}`, request.url).toString());
+  try {
+    const hit = await cache.match(key);
+    if (hit) return hit;
+  } catch {}
+  const content = await getContent(env);
+  const known = [...content.venues, ...content.cases].some((x) => (x.drive_videos || []).includes(driveId));
+  if (!known) return new Response('Not found', { status: 404 });
+  const img = await fetchDriveImage(driveId, 960);
+  if (!img) return new Response('Not available', { status: 404, headers: { 'cache-control': 'no-store' } });
+  const res = new Response(img.buf, { headers: { 'content-type': img.type, 'cache-control': 'public, max-age=604800' } });
   try {
     ctx.waitUntil(cache.put(key, res.clone()));
   } catch {}

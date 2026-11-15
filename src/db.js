@@ -1,7 +1,7 @@
-import { DEFAULTS } from './seed.js';
+import { DEFAULTS, SEED_MEDIA, SEED_MEDIA_VERSION } from './seed.js';
 import { parseJson, nowIso } from './util.js';
 
-const SCHEMA_VERSION = 1;
+const SCHEMA_VERSION = 2;
 
 const SCHEMA = [
   `CREATE TABLE IF NOT EXISTS meta (k TEXT PRIMARY KEY, v TEXT)`,
@@ -47,7 +47,7 @@ const SCHEMA = [
   `CREATE TABLE IF NOT EXISTS media (
      id INTEGER PRIMARY KEY AUTOINCREMENT, owner_type TEXT NOT NULL, owner_id TEXT NOT NULL,
      sort INTEGER DEFAULT 0, caption TEXT DEFAULT '', mime TEXT, width INTEGER, height INTEGER,
-     size INTEGER, data BLOB, created_at TEXT)`,
+     size INTEGER, data BLOB, src TEXT DEFAULT '', created_at TEXT)`,
   `CREATE INDEX IF NOT EXISTS idx_media_owner ON media(owner_type, owner_id, sort)`,
   `CREATE TABLE IF NOT EXISTS activity (
      id INTEGER PRIMARY KEY AUTOINCREMENT, inquiry_id INTEGER, booking_id INTEGER,
@@ -72,15 +72,41 @@ export function ensureSchema(env) {
     }
     if (ver < SCHEMA_VERSION) {
       await env.DB.batch(SCHEMA.map((s) => env.DB.prepare(s)));
+      // v2: 구글드라이브에서 가져온 사진의 원본 위치
+      try {
+        await env.DB.prepare(`ALTER TABLE media ADD COLUMN src TEXT DEFAULT ''`).run();
+      } catch {}
       await env.DB.prepare(`INSERT INTO meta(k,v) VALUES('schema',?) ON CONFLICT(k) DO UPDATE SET v=excluded.v`)
         .bind(String(SCHEMA_VERSION))
         .run();
     }
+    await seedMedia(env);
   })().catch((e) => {
     ready = null;
     throw e;
   });
   return ready;
+}
+
+// 기본 사진을 한 번만 넣습니다. 이미 사진이 있는 곳은 건드리지 않습니다.
+async function seedMedia(env) {
+  const r = await env.DB.prepare(`SELECT v FROM meta WHERE k='seed_media'`).first();
+  if (Number(r?.v || 0) >= SEED_MEDIA_VERSION) return;
+  const now = new Date().toISOString();
+  const stmts = [];
+  for (const [owner, list] of Object.entries(SEED_MEDIA)) {
+    const [type, id] = owner.split(':');
+    const c = await env.DB.prepare('SELECT COUNT(*) n FROM media WHERE owner_type=? AND owner_id=?').bind(type, id).first();
+    if (c.n > 0) continue;
+    list.forEach(([driveId, caption], i) => {
+      stmts.push(
+        env.DB.prepare(`INSERT INTO media(owner_type, owner_id, sort, caption, mime, width, height, size, data, src, created_at) VALUES(?,?,?,?,'',0,0,0,NULL,?,?)`)
+          .bind(type, id, i + 1, caption, `drive:${driveId}`, now)
+      );
+    });
+  }
+  stmts.push(env.DB.prepare(`INSERT INTO meta(k,v) VALUES('seed_media',?) ON CONFLICT(k) DO UPDATE SET v=excluded.v`).bind(String(SEED_MEDIA_VERSION)));
+  await env.DB.batch(stmts);
 }
 
 let cache = { t: 0, data: null };

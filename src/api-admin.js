@@ -2,6 +2,7 @@ import { json, fail, readJson, clip, normPhone, isDate, isTime, toInt, nowIso, k
 import { ensureSchema, getContent, setContent, bustContent, logActivity, rateLimit } from './db.js';
 import { hashPassword, verifyPassword, validPassword, createSession, destroySession, currentAdmin, sameOrigin } from './auth.js';
 import { createInquiry } from './api-public.js';
+import { folderIdFrom, listDriveFolder, DRIVE_ID } from './drive.js';
 import { DEFAULTS, EVENT_TYPES, OPTION_LIST, BUDGETS, INQUIRY_STATUS, BOOKING_STATUS, QUOTE_STATUS } from './seed.js';
 
 const CONTENT_KEYS = { settings: 'object', venues: 'array', cases: 'array', faqs: 'array', guide: 'object', rates: 'array' };
@@ -449,7 +450,7 @@ export async function handleAdminApi(request, env, ctx, url) {
   // ── 사진 ───────────────────────────────────────────────────
   if (p === '/media' && method === 'GET') {
     const q = url.searchParams;
-    const rs = await env.DB.prepare('SELECT id, owner_type, owner_id, sort, caption, width, height, size FROM media WHERE owner_type=? AND owner_id=? ORDER BY sort, id')
+    const rs = await env.DB.prepare('SELECT id, owner_type, owner_id, sort, caption, width, height, size, src FROM media WHERE owner_type=? AND owner_id=? ORDER BY sort, id')
       .bind(q.get('owner_type') || '', q.get('owner_id') || '').all();
     return json({ ok: true, items: rs.results });
   }
@@ -469,6 +470,46 @@ export async function handleAdminApi(request, env, ctx, url) {
       .bind(type, owner, mx.s + 1, clip(q.get('caption'), 120), mime, toInt(q.get('w'), 0), toInt(q.get('h'), 0), buf.byteLength, buf, nowIso()).run();
     bustContent();
     return json({ ok: true, id: r.meta.last_row_id });
+  }
+
+  // 구글드라이브 공유 폴더 목록
+  if (p === '/drive/list' && method === 'GET') {
+    const folder = folderIdFrom(url.searchParams.get('url'));
+    if (!folder) return fail(400, '구글드라이브 폴더 링크를 확인해 주세요.');
+    let items = null;
+    try { items = await listDriveFolder(folder); } catch { items = null; }
+    if (!items) return fail(400, '폴더를 열지 못했습니다. 드라이브에서 공유 설정이 "링크가 있는 모든 사용자"로 되어 있는지 확인해 주세요.');
+    return json({ ok: true, folder, items });
+  }
+
+  // 드라이브 사진·영상을 지점이나 사례에 추가. 사진은 처음 열 때 서버가 받아 저장합니다.
+  if (p === '/media/drive' && method === 'POST') {
+    const b = await body();
+    const type = b.owner_type;
+    const owner = clip(b.owner_id, 60);
+    if (!['venue', 'case'].includes(type) || !owner) return fail(400, '사진을 넣을 곳을 선택해 주세요.');
+    const images = (Array.isArray(b.images) ? b.images : []).filter((x) => x && DRIVE_ID.test(x.id)).slice(0, 100);
+    const videos = (Array.isArray(b.videos) ? b.videos : []).filter((x) => DRIVE_ID.test(x)).slice(0, 20);
+    const ids = [];
+    if (images.length) {
+      const mx = await env.DB.prepare('SELECT COALESCE(MAX(sort),0) s FROM media WHERE owner_type=? AND owner_id=?').bind(type, owner).first();
+      const now = nowIso();
+      for (let i = 0; i < images.length; i++) {
+        const r = await env.DB.prepare(`INSERT INTO media(owner_type, owner_id, sort, caption, mime, width, height, size, data, src, created_at) VALUES(?,?,?,?,'',0,0,0,NULL,?,?)`)
+          .bind(type, owner, mx.s + i + 1, clip(images[i].caption, 120), `drive:${images[i].id}`, now).run();
+        ids.push(r.meta.last_row_id);
+      }
+    }
+    if (videos.length) {
+      const key = type === 'venue' ? 'venues' : 'cases';
+      const list = JSON.parse(JSON.stringify(content[key]));
+      const item = list.find((x) => (type === 'venue' ? x.slug : x.id) === owner);
+      if (!item) return fail(400, '영상을 붙일 지점이나 사례를 찾지 못했습니다.');
+      item.drive_videos = Array.from(new Set([...(item.drive_videos || []), ...videos]));
+      await setContent(env, key, list);
+    }
+    bustContent();
+    return json({ ok: true, ids, videos: videos.length });
   }
 
   if (p === '/media/reorder' && method === 'POST') {

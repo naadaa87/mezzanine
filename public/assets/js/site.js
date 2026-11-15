@@ -79,6 +79,34 @@
     });
   });
 
+  // 구글드라이브 영상 재생
+  let vd;
+  document.addEventListener('click', (e) => {
+    const btn = e.target.closest('.dv[data-dv]');
+    if (!btn) return;
+    if (!vd) {
+      vd = document.createElement('dialog');
+      vd.className = 'lb vd';
+      vd.innerHTML = '<div class="lb-in"><div class="vd-frame"></div><p class="lb-cap"></p></div><button type="button" class="lb-close" aria-label="닫기">✕</button>';
+      document.body.appendChild(vd);
+      $('.lb-close', vd).addEventListener('click', () => vd.close());
+      vd.addEventListener('click', (ev) => {
+        if (ev.target === vd || ev.target.classList.contains('lb-in')) vd.close();
+      });
+      vd.addEventListener('close', () => {
+        $('.vd-frame', vd).textContent = '';
+      });
+    }
+    const f = document.createElement('iframe');
+    f.src = `https://drive.google.com/file/d/${encodeURIComponent(btn.dataset.dv)}/preview`;
+    f.title = btn.getAttribute('aria-label') || '영상';
+    f.allow = 'autoplay; fullscreen';
+    f.allowFullscreen = true;
+    $('.vd-frame', vd).replaceChildren(f);
+    $('.lb-cap', vd).textContent = btn.getAttribute('aria-label') ? btn.getAttribute('aria-label').replace(/ 재생$/, '') : '';
+    vd.showModal();
+  });
+
   // 사진 크게 보기
   let lb;
   const openLightbox = (items, index) => {

@@ -9,7 +9,7 @@ const NAV = [
 
 export const mark = `<svg class="mark" viewBox="0 0 44 28" aria-hidden="true"><rect x="1" y="6" width="10" height="21"/><rect x="17" y="1" width="10" height="26"/><rect x="33" y="10" width="10" height="17"/><rect class="mark-link" x="11" y="13" width="22" height="4"/></svg>`;
 
-export function page({ content, origin, path, title, description, body, active = '', jsonLd = null, scripts = [], noindex = false }) {
+export function page({ content, origin, path, title, description, body, active = '', jsonLd = null, scripts = [], noindex = false, image = '' }) {
   const s = content.settings;
   const site = (s.site_url || origin || '').replace(/\/$/, '');
   const fullTitle = title ? `${title} | ${s.brand}` : `${s.brand} | 통건물 복합 대관 공간`;
@@ -31,14 +31,15 @@ ${noindex ? '<meta name="robots" content="noindex">' : ''}
 <meta property="og:title" content="${esc(fullTitle)}">
 <meta property="og:description" content="${esc(desc)}">
 <meta property="og:url" content="${esc(site + path)}">
-<meta property="og:image" content="${esc(site)}/assets/img/og.png">
+<meta property="og:image" content="${esc(site)}${esc(image || '/assets/img/og.png')}">
+<meta name="twitter:card" content="summary_large_image">
 <meta name="theme-color" content="#ffffff">
 <link rel="icon" href="/assets/img/favicon.svg" type="image/svg+xml">
 <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,400..800&display=swap">
-<link rel="stylesheet" href="/assets/css/site.css?v=1">
+<link rel="stylesheet" href="/assets/css/site.css?v=2">
 ${jsonLd ? `<script type="application/ld+json">${JSON.stringify(jsonLd).replace(/</g, '\\u003c')}</script>` : ''}
 </head>
 <body>
@@ -93,8 +94,8 @@ ${body}
     <p>© ${new Date().getFullYear()} ${esc(s.brand_en)}</p>
   </div>
 </footer>
-<script src="/assets/js/site.js?v=1" defer></script>
-${scripts.map((src) => `<script src="${src}?v=1" defer></script>`).join('\n')}
+<script src="/assets/js/site.js?v=2" defer></script>
+${scripts.map((src) => `<script src="${src}?v=2" defer></script>`).join('\n')}
 </body>
 </html>`;
 }
