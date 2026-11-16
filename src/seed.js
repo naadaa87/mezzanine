@@ -25,6 +25,11 @@ export const INQUIRY_STATUS = {
 
 export const BOOKING_STATUS = { hold: '가예약', confirmed: '확정', done: '완료', cancelled: '취소' };
 export const QUOTE_STATUS = { draft: '작성 중', sent: '발송', accepted: '수락', declined: '거절', expired: '만료' };
+export const LEAD_STATUS = { new: '새 요청', contacted: '연락함', converted: '문의로 전환', closed: '종료' };
+export const PARTNER_STATUS = { new: '신규', reviewing: '검토 중', visit: '현장 확인', proposal: '운영 제안', contracted: '계약', declined: '보류·반려' };
+export const HOST_STATUS = { invited: '초대함', active: '사용 중', paused: '일시 중지' };
+export const SETTLE_STATUS = { draft: '작성 중', confirmed: '확정', paid: '지급 완료' };
+export const PARTNER_MODELS = ['위탁 운영(매출 배분)', '임차 운영(마스터리스)', '공실 기간 단기 활용', '상담 후 결정'];
 
 export const DEFAULTS = {
   settings: {
@@ -107,6 +112,19 @@ export const DEFAULTS = {
       parking: '',
       map: { naver: 'https://naver.me/FgESezMd', kakao: '' },
       brochure: 'https://drive.google.com/file/d/1s7jILRl_M00hQq49xfPsi22WchXNv5M1/view',
+      brochure_label: '삼성 지점 베뉴 소개서 (26.4Q, 8쪽)',
+      map_image: '/assets/venue/samsung/map.jpg',
+      guide: {
+        summary: '중정을 가운데 두고 세 동이 이어진 공간입니다. 실내와 테라스, 2층을 잇는 동선이 있어 구역을 나눠 쓰거나 하나로 묶어 쓸 수 있습니다.',
+        legend: [['#e4e4e4', '실내'], ['#f6d6c3', '테라스'], ['#cfe0f2', '출입문']],
+        floors: [
+          { id: 'a1f', bldg: 'A동', floor: '1F', sub: '메인 공간 · 테라스', highlights: ['메인 공간', '테라스 여러 곳', '화장실'], details: [['a1f-1', '외부 진입로'], ['a1f-2', '테라스 쪽 실내']] },
+          { id: 'a2f', bldg: 'A동', floor: '2F', sub: '메인 공간 · 테라스', highlights: ['탁 트인 메인 공간', '유리 지붕 존', '테라스 연결'], details: [['a2f-1', '테라스 데크'], ['a2f-2', '유리 지붕 존']] },
+          { id: 'b1f', bldg: 'B동', floor: '1F', sub: '오픈 홀 · 도로 쪽 전면', highlights: ['오픈 홀', '도로 쪽 전면', '측면 출입', '자유로운 배치'], details: [['b1f-1', '측면 계단 출입구'], ['b1f-2', '건물 전면']] },
+          { id: 'b2f', bldg: 'B동', floor: '2F', sub: '오픈 공간 · 유리 지붕 존', highlights: ['오픈 공간', '유리 지붕 존', '테라스 끝'], details: [['b2f-1', '창가 쪽 오픈 공간'], ['b2f-2', '유리 지붕 존과 테라스 끝']] },
+          { id: 'c2f', bldg: 'C동', floor: '2F', sub: '메인 공간 · 테라스', highlights: ['룸 2개', '테라스', '화장실', '팬트리'], details: [['c2f-1', '룸·라운지'], ['c2f-2', '테라스']] },
+        ],
+      },
       video: 'mcoh193A1sA',
       instagram: '',
     },
@@ -171,6 +189,17 @@ export const DEFAULTS = {
       parking: '최대 7대',
       map: { naver: 'https://naver.me/FMcN6M5m', kakao: '' },
       brochure: 'https://drive.google.com/file/d/1ybjDrcr3eKSA06TZHOu2EQWPJMvTxFsd/view',
+      brochure_label: '북가좌 지점 베뉴 소개서 (26.4Q, 8쪽)',
+      map_image: '/assets/venue/bukgajwa/map.jpg',
+      guide: {
+        summary: '중정을 두고 세 동이 모여 있고, 실내와 테라스, 2층을 잇는 동선으로 연결됩니다. 지하 공연장부터 사방이 유리인 2층까지 층마다 성격이 다릅니다.',
+        legend: [['#cfe0f2', '출입문'], ['#f6d8c6', '메인 공간'], ['#ededed', '보조 공간']],
+        floors: [
+          { id: 'a0f', bldg: 'A동', floor: 'B1', sub: '지하 공연장', highlights: ['공연장', 'LED 백스크린', '화장실'], details: [['a0f-1', '공연장 내부'], ['a0f-2', '공연 중인 모습']] },
+          { id: 'a1f', bldg: 'A동', floor: '1F', sub: '메인 공간 · 대로변 전면', highlights: ['메인 공간', '복층 구조', '여러 방향의 출입 동선'], details: [['a1f-1', '메인 공간'], ['a1f-2', '복층(메자닌) 공간']] },
+          { id: 'a2f', bldg: 'A동', floor: '2F', sub: '메인 공간', highlights: ['메인 공간', '사방이 유리'], details: [['a2f-1', '메인 공간'], ['a2f-2', '복층(메자닌) 공간']] },
+        ],
+      },
       video: 'R3XViXgbSlc',
       drive_videos: ['1UwwadvzQJ80keF5d1Wc2uwLfff-xhctI', '134KbpICbDT8foWHz_h1ITVm_t_BKvXCO'],
       instagram: '',
@@ -368,11 +397,12 @@ export const DEFAULTS = {
 
   // 견적서 작성 시 불러다 쓰는 요금 항목. 관리자 화면에서 관리합니다.
   rates: [],
+  partner: { open: true },
 };
 
 // 처음 배포했을 때 넣어 두는 기본 사진. 구글드라이브 공유 폴더의 파일을 서버가 처음 열 때 한 번 받아 D1에 저장합니다.
 // 관리자에서 지우거나 순서를 바꾸면 그대로 유지되고, 다시 채워지지 않습니다.
-export const SEED_MEDIA_VERSION = 2;
+export const SEED_MEDIA_VERSION = 3;
 const D = {
   B001: '10Mu3JHmTj-rEE2EaaEU4O4pIklaoLGct', B002: '1cnM1GSIXcFp4xuO6B9kgzhobuFMJwDrM', B003: '1GQp0KRKOBPyCu2Adbvj_BPgrffXu4zoi',
   B004: '1a5h2F2qo7_MTJncoCxeYDNAMp0SZ9pzT', B005: '18Dz-iaGH7zSCV6XRRECDFeyHdjJi30Y-', B006: '1tdwR2k-klF4qeYc91c6uEJKV8NOVPQxz',
@@ -458,4 +488,23 @@ export const SEED_MEDIA_V2 = [
   ['venue:hannam', HN.h40, '안쪽 끝까지 이어진 동선', 'photo'],
   ['venue:hannam', HN.h37, '건물 외관', 'photo'],
   ['venue:hannam', HN.h15, '한남대로 쪽 전경', 'photo'],
+];
+
+// v3: 지점 소개서에 실린 실제 공간 사진 (public/assets/venue/...) — 지점 사진 맨 앞에 넣습니다
+// [사진 자리, 파일 경로, 설명, 종류]
+export const SEED_MEDIA_V3 = [
+  ['venue:samsung', '/assets/venue/samsung/exterior.jpg', '외관. 왼쪽부터 A동, C동, B동'],
+  ['venue:samsung', '/assets/venue/samsung/a2f.jpg', 'A동 2층, 유리 지붕 존'],
+  ['venue:samsung', '/assets/venue/samsung/b1f.jpg', 'B동 1층 오픈 홀'],
+  ['venue:samsung', '/assets/venue/samsung/a1f.jpg', 'A동 1층 메인 공간'],
+  ['venue:samsung', '/assets/venue/samsung/b2f.jpg', 'B동 2층 오픈 공간'],
+  ['venue:samsung', '/assets/venue/samsung/c2f.jpg', 'C동 2층 메인 공간'],
+  ['venue:samsung', '/assets/venue/samsung/dusk.jpg', '해 질 무렵의 외관'],
+  ['venue:bukgajwa', '/assets/venue/bukgajwa/front.jpg', '대로변에서 본 A동'],
+  ['venue:bukgajwa', '/assets/venue/bukgajwa/a2f.jpg', 'A동 2층, 사방이 유리인 메인 공간'],
+  ['venue:bukgajwa', '/assets/venue/bukgajwa/side.jpg', 'A동 측면'],
+  ['venue:bukgajwa', '/assets/venue/bukgajwa/courtyard.jpg', '중정'],
+  ['venue:bukgajwa', '/assets/venue/bukgajwa/a1f.jpg', 'A동 1층 메인 공간'],
+  ['venue:bukgajwa', '/assets/venue/bukgajwa/a0f.jpg', 'A동 지하 공연장'],
+  ['venue:bukgajwa', '/assets/venue/bukgajwa/night.jpg', '저녁의 A동 전면'],
 ];

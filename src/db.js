@@ -1,8 +1,8 @@
-import { DEFAULTS, SEED_MEDIA, SEED_MEDIA_V2, SEED_MEDIA_VERSION } from './seed.js';
-import { fetchDriveImage } from './drive.js';
+import { DEFAULTS, SEED_MEDIA, SEED_MEDIA_V2, SEED_MEDIA_V3, SEED_MEDIA_VERSION } from './seed.js';
+import { fetchDriveImage, imageSize } from './drive.js';
 import { parseJson, nowIso } from './util.js';
 
-const SCHEMA_VERSION = 3;
+const SCHEMA_VERSION = 4;
 
 const SCHEMA = [
   `CREATE TABLE IF NOT EXISTS meta (k TEXT PRIMARY KEY, v TEXT)`,
@@ -56,6 +56,44 @@ const SCHEMA = [
      actor TEXT, action TEXT, detail TEXT, created_at TEXT)`,
   `CREATE INDEX IF NOT EXISTS idx_activity_inquiry ON activity(inquiry_id, id)`,
   `CREATE TABLE IF NOT EXISTS rate_limits (k TEXT PRIMARY KEY, n INTEGER, reset_at INTEGER)`,
+  // v4: 공간소개서 요청(리드)
+  `CREATE TABLE IF NOT EXISTS leads (
+     id INTEGER PRIMARY KEY AUTOINCREMENT, code TEXT UNIQUE NOT NULL, token TEXT NOT NULL, venues TEXT DEFAULT '[]',
+     customer_id INTEGER, name TEXT, company TEXT, phone TEXT, email TEXT, event_type TEXT, event_month TEXT,
+     headcount INTEGER, message TEXT DEFAULT '', wants_call INTEGER DEFAULT 0, status TEXT DEFAULT 'new',
+     memo TEXT DEFAULT '', inquiry_id INTEGER, downloads INTEGER DEFAULT 0, last_download_at TEXT,
+     referrer TEXT DEFAULT '', created_at TEXT, updated_at TEXT)`,
+  `CREATE INDEX IF NOT EXISTS idx_leads_created ON leads(created_at)`,
+  // 소개서 PDF 등 큰 파일: D1 한 칸에 2MB까지만 들어가므로 나눠서 저장
+  `CREATE TABLE IF NOT EXISTS files (
+     k TEXT PRIMARY KEY, name TEXT, mime TEXT, size INTEGER DEFAULT 0, parts INTEGER DEFAULT 0, src TEXT DEFAULT '',
+     state INTEGER DEFAULT 0, fetch_at TEXT, updated_at TEXT)`,
+  `CREATE TABLE IF NOT EXISTS file_parts (k TEXT NOT NULL, part INTEGER NOT NULL, data BLOB, PRIMARY KEY(k, part))`,
+  // 공간 파트너(건물주) 입점 신청
+  `CREATE TABLE IF NOT EXISTS partner_apps (
+     id INTEGER PRIMARY KEY AUTOINCREMENT, code TEXT UNIQUE NOT NULL, name TEXT, relation TEXT, company TEXT,
+     phone TEXT, email TEXT, address TEXT, building_type TEXT, floors TEXT, area TEXT, vacancy TEXT,
+     available_from TEXT, model TEXT, link TEXT, message TEXT, status TEXT DEFAULT 'new', memo TEXT DEFAULT '',
+     host_id INTEGER, created_at TEXT, updated_at TEXT)`,
+  // 호스트(공간 파트너) 계정
+  `CREATE TABLE IF NOT EXISTS hosts (
+     id INTEGER PRIMARY KEY AUTOINCREMENT, login TEXT UNIQUE, name TEXT, company TEXT, phone TEXT, email TEXT,
+     pass_hash TEXT, pass_salt TEXT, status TEXT DEFAULT 'invited', invite_hash TEXT, invite_expires TEXT,
+     venues TEXT DEFAULT '[]', share_rate REAL DEFAULT 0, memo TEXT DEFAULT '', unread_admin INTEGER DEFAULT 0,
+     unread_host INTEGER DEFAULT 0, created_at TEXT, last_login_at TEXT)`,
+  `CREATE TABLE IF NOT EXISTS host_sessions (token_hash TEXT PRIMARY KEY, host_id INTEGER NOT NULL, expires_at TEXT NOT NULL, created_at TEXT)`,
+  `CREATE TABLE IF NOT EXISTS host_messages (
+     id INTEGER PRIMARY KEY AUTOINCREMENT, host_id INTEGER NOT NULL, sender TEXT NOT NULL, author TEXT, body TEXT NOT NULL, created_at TEXT)`,
+  `CREATE INDEX IF NOT EXISTS idx_host_messages ON host_messages(host_id, id)`,
+  `CREATE TABLE IF NOT EXISTS settlements (
+     id INTEGER PRIMARY KEY AUTOINCREMENT, host_id INTEGER NOT NULL, venue TEXT NOT NULL, month TEXT NOT NULL,
+     bookings INTEGER DEFAULT 0, gross INTEGER DEFAULT 0, share_rate REAL DEFAULT 0, host_amount INTEGER DEFAULT 0,
+     adjust INTEGER DEFAULT 0, payout INTEGER DEFAULT 0, status TEXT DEFAULT 'draft', memo TEXT DEFAULT '',
+     paid_at TEXT, created_at TEXT, updated_at TEXT, UNIQUE(host_id, venue, month))`,
+  // 방문 집계: 쿠키 없이 하루 단위로만 셉니다
+  `CREATE TABLE IF NOT EXISTS page_views (day TEXT NOT NULL, path TEXT NOT NULL, n INTEGER DEFAULT 0, PRIMARY KEY(day, path))`,
+  `CREATE TABLE IF NOT EXISTS visitors (day TEXT NOT NULL, h TEXT NOT NULL, PRIMARY KEY(day, h))`,
+  `CREATE TABLE IF NOT EXISTS referrers (day TEXT NOT NULL, host TEXT NOT NULL, n INTEGER DEFAULT 0, PRIMARY KEY(day, host))`,
 ];
 
 let ready = null;
@@ -127,6 +165,19 @@ async function seedMedia(env) {
       lasts.forEach((x) => stmts.push(insert(type, id, ++hi, x[2], `drive:${x[1]}`, x[3])));
     }
   }
+  if (done < 3) {
+    // 소개서에 실린 실제 공간 사진(사이트에 함께 올린 파일). 지점 사진 맨 앞에 넣습니다.
+    const byOwner = {};
+    for (const it of SEED_MEDIA_V3) (byOwner[it[0]] ||= []).push(it);
+    for (const [owner, list] of Object.entries(byOwner)) {
+      const [type, id] = owner.split(':');
+      const ex = await env.DB.prepare('SELECT src, sort FROM media WHERE owner_type=? AND owner_id=?').bind(type, id).all();
+      const have = new Set(ex.results.map((x) => x.src));
+      const lo = Math.min(-100, ...ex.results.map((x) => x.sort));
+      const add = list.filter((x) => !have.has(`asset:${x[1]}`));
+      add.forEach((x, i) => stmts.push(insert(type, id, lo - add.length + i, x[2], `asset:${x[1]}`, x[3] || 'photo')));
+    }
+  }
   stmts.push(env.DB.prepare(`INSERT INTO meta(k,v) VALUES('seed_media',?) ON CONFLICT(k) DO UPDATE SET v=excluded.v`).bind(String(SEED_MEDIA_VERSION)));
   await env.DB.batch(stmts);
 }
@@ -147,15 +198,40 @@ export async function storeDriveMedia(env, row) {
   return big;
 }
 
+// 사이트에 함께 올린 사진 파일(public/assets/...)을 사진 목록에 저장합니다. 작은 사진은 같은 이름의 .sm.jpg
+export async function storeAssetMedia(env, row) {
+  const path = String(row.src || '').slice(6);
+  const get = async (p) => {
+    if (!env.ASSETS) return null;
+    const res = await env.ASSETS.fetch(new Request(`https://assets.local${p}`));
+    if (!res.ok) return null;
+    return new Uint8Array(await res.arrayBuffer());
+  };
+  const big = await get(path);
+  if (!big) {
+    await env.DB.prepare(`UPDATE media SET fetch_state=-1, fetch_at=? WHERE id=?`).bind(new Date().toISOString(), row.id).run();
+    return null;
+  }
+  const small = await get(path.replace(/\.jpg$/, '.sm.jpg'));
+  const dim = imageSize(big) || {};
+  await env.DB.prepare(`UPDATE media SET data=?, thumb=?, mime='image/jpeg', width=?, height=?, size=?, fetch_state=1, fetch_at=? WHERE id=?`)
+    .bind(big.buffer, small ? small.buffer : null, dim.w || 0, dim.h || 0, big.byteLength, new Date().toISOString(), row.id)
+    .run();
+  bustContent();
+  return true;
+}
+
+export const storeMedia = (env, row) => (String(row.src || '').startsWith('asset:') ? storeAssetMedia(env, row) : storeDriveMedia(env, row));
+
 export async function processPendingMedia(env, limit = 8) {
   await ensureSchema(env);
   const retry = new Date(Date.now() - 20 * 60 * 1000).toISOString();
   const rs = await env.DB.prepare(
-    `SELECT id, src FROM media WHERE src LIKE 'drive:%' AND (size IS NULL OR size=0 OR thumb IS NULL)
-     AND (fetch_state IS NULL OR fetch_state<>-1 OR fetch_at<?) ORDER BY id LIMIT ?`
+    `SELECT id, src FROM media WHERE (src LIKE 'drive:%' OR src LIKE 'asset:%') AND (size IS NULL OR size=0 OR thumb IS NULL)
+     AND (fetch_state IS NULL OR fetch_state<>-1 OR fetch_at<?) ORDER BY (src LIKE 'asset:%') DESC, id LIMIT ?`
   ).bind(retry, limit).all();
   let ok = 0;
-  for (const row of rs.results) if (await storeDriveMedia(env, row)) ok++;
+  for (const row of rs.results) if (await storeMedia(env, row)) ok++;
   return { tried: rs.results.length, ok };
 }
 
@@ -173,11 +249,19 @@ function withDefaults(o = {}) {
       business: { ...d.business, ...(s.business || {}) },
       notify: { ...d.notify, ...(s.notify || {}) },
     },
-    venues: Array.isArray(o.venues) ? o.venues : DEFAULTS.venues,
+    // 관리자에서 저장한 지점 정보에 새로 생긴 항목(층별 안내 등)이 없으면 기본값으로 채웁니다
+    venues: Array.isArray(o.venues)
+      ? o.venues.map((v) => {
+          const d = DEFAULTS.venues.find((x) => x.slug === v.slug);
+          return d ? { ...d, ...v, guide: v.guide || d.guide, map: { ...(d.map || {}), ...(v.map || {}) } } : v;
+        })
+      : DEFAULTS.venues,
     cases: Array.isArray(o.cases) ? o.cases : DEFAULTS.cases,
     faqs: Array.isArray(o.faqs) ? o.faqs : DEFAULTS.faqs,
     guide: o.guide || DEFAULTS.guide,
     rates: Array.isArray(o.rates) ? o.rates : DEFAULTS.rates,
+    host_notices: Array.isArray(o.host_notices) ? o.host_notices : [],
+    partner: { ...DEFAULTS.partner, ...(o.partner || {}) },
     media: {},
   };
 }
@@ -188,17 +272,20 @@ export async function getContent(env, force = false) {
   let data;
   try {
     await ensureSchema(env);
-    const [rows, media] = await env.DB.batch([
+    const [rows, media, files] = await env.DB.batch([
       env.DB.prepare('SELECT k, v FROM content'),
       env.DB.prepare('SELECT id, owner_type, owner_id, sort, caption, width, height, kind FROM media WHERE size>0 ORDER BY owner_type, owner_id, sort, id'),
+      env.DB.prepare(`SELECT k FROM files WHERE k LIKE 'brochure:%' AND state=1 AND parts>0`),
     ]);
     const o = {};
     for (const r of rows.results) o[r.k] = parseJson(r.v, undefined);
     data = withDefaults(o);
     for (const m of media.results) (data.media[`${m.owner_type}:${m.owner_id}`] ||= []).push(m);
+    data.brochures = files.results.map((f) => f.k.slice(9));
     data.dbReady = true;
   } catch (e) {
     data = withDefaults({});
+    data.brochures = [];
     data.dbReady = false;
   }
   cache = { t: Date.now(), data };

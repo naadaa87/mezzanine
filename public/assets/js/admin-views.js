@@ -116,7 +116,7 @@
     const link = location.origin + d.link;
     const reload = () => inquiryDetail(main, id);
     main.innerHTML = `<a class="back" href="#/inquiries">← 문의 목록</a>
-      <div class="head"><div><h1>${esc(i.code)} <span class="muted" style="font-weight:600;font-size:1rem">${notify ? '오픈 알림 신청' : '대관 문의'}</span></h1><p>${dt(i.created_at)} 접수 · ${esc(i.source === 'web' ? '홈페이지' : i.source)}</p></div>
+      <div class="head"><div><h1>${esc(i.code)} <span class="muted" style="font-weight:600;font-size:1rem">${notify ? '오픈 알림 신청' : '대관 문의'}</span></h1><p>${dt(i.created_at)} 접수 · ${esc(i.source === 'web' ? '홈페이지' : i.source === 'brochure' ? '소개서 요청에서 전환' : i.source)}</p></div>
         <div class="head-actions">
           <select id="d-status" aria-label="진행 상태" style="width:auto">${Object.entries(E().INQUIRY_STATUS).map(([k, v]) => `<option value="${k}"${i.status === k ? ' selected' : ''}>${v}</option>`).join('')}</select>
           <button class="btn" type="button" id="d-link">고객용 조회 주소 복사</button>

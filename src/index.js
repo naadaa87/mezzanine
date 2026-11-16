@@ -1,7 +1,10 @@
 import { fail } from './util.js';
 import { getContent, processPendingMedia } from './db.js';
 import { serveCalendar } from './ics.js';
-import { handlePublicApi, serveMedia, serveVideoPoster } from './api-public.js';
+import { handlePublicApi, serveMedia, serveVideoPoster, serveBrochure } from './api-public.js';
+import { handleHostApi } from './api-host.js';
+import { trackable, trackView } from './track.js';
+import { brochurePage, brochureErrorPage, hostPage } from './render/growth.js';
 import { handleAdminApi } from './api-admin.js';
 import { html } from './render/layout.js';
 import { homePage, venuesPage, venuePage, casesPage, inquiryPage, myPage, guidePage, notFoundPage } from './render/pages.js';
@@ -18,6 +21,7 @@ export default {
     const p = url.pathname.length > 1 ? url.pathname.replace(/\/+$/, '') : '/';
     try {
       if (p.startsWith('/api/admin')) return await handleAdminApi(request, env, ctx, url);
+      if (p.startsWith('/api/host')) return await handleHostApi(request, env, ctx, url);
       if (p.startsWith('/api/')) return await handlePublicApi(request, env, ctx, url);
 
       const media = p.match(/^\/media\/(\d+)$/);
@@ -37,6 +41,18 @@ export default {
         ctx.waitUntil(processPendingMedia(env, 4).catch(() => {}));
       }
 
+      // 방문 집계(공개 페이지만, 하루 단위 숫자)
+      if (content.dbReady && request.method === 'GET' && trackable(p)) ctx.waitUntil(trackView(env, request, p));
+
+      const dl = p.match(/^\/brochure\/download\/([A-Z0-9-]{8,30})\/([A-Za-z0-9_-]{16,60})\/([a-z0-9-]+)$/);
+      if (dl) {
+        const r = await serveBrochure(request, env, ctx, dl[1], dl[2], dl[3]);
+        if (r.res) return r.res;
+        return html(brochureErrorPage(content, origin, r.error), 404, { 'cache-control': 'no-store' });
+      }
+      if (p === '/brochure') return html(brochurePage(content, origin, url.searchParams.get('venue') || ''));
+      if (p === '/host') return html(hostPage(content, origin));
+
       if (p === '/') return html(homePage(content, origin));
       if (p === '/venues') return html(venuesPage(content, origin));
       const vm = p.match(/^\/venues\/([a-z0-9-]+)$/);
@@ -51,13 +67,13 @@ export default {
 
       if (p === '/robots.txt') {
         const site = (content.settings.site_url || origin).replace(/\/$/, '');
-        return new Response(`User-agent: *\nAllow: /\nDisallow: /admin\nDisallow: /api/\nDisallow: /my\n\nSitemap: ${site}/sitemap.xml\n`, {
+        return new Response(`User-agent: *\nAllow: /\nDisallow: /admin\nDisallow: /api/\nDisallow: /my\nDisallow: /host/center\nDisallow: /brochure/download\n\nSitemap: ${site}/sitemap.xml\n`, {
           headers: { 'content-type': 'text/plain; charset=utf-8' },
         });
       }
       if (p === '/sitemap.xml') {
         const site = (content.settings.site_url || origin).replace(/\/$/, '');
-        const paths = ['/', '/venues', ...content.venues.map((v) => `/venues/${v.slug}`), '/cases', '/guide', '/inquiry'];
+        const paths = ['/', '/venues', ...content.venues.map((v) => `/venues/${v.slug}`), '/cases', '/guide', '/brochure', '/inquiry', '/host'];
         const xml = `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${paths
           .map((x) => `  <url><loc>${site}${x}</loc></url>`)
           .join('\n')}\n</urlset>\n`;

@@ -5,6 +5,7 @@ const NAV = [
   { href: '/venues', label: '공간', key: 'venues' },
   { href: '/cases', label: '대관 사례', key: 'cases' },
   { href: '/guide', label: '이용 안내', key: 'guide' },
+  { href: '/brochure', label: '소개서', key: 'brochure' },
   { href: '/my', label: '내 문의 조회', key: 'my' },
 ];
 
@@ -52,7 +53,7 @@ ${noindex ? '<meta name="robots" content="noindex">' : ''}
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Jost:wght@300;400;500&family=Noto+Serif+KR:wght@300;400;500&display=swap">
-<link rel="stylesheet" href="/assets/css/site.css?v=3">
+<link rel="stylesheet" href="/assets/css/site.css?v=4">
 ${jsonLd ? `<script type="application/ld+json">${JSON.stringify(jsonLd).replace(/</g, '\\u003c')}</script>` : ''}
 </head>
 <body${bar ? ' class="has-bar"' : ''}>
@@ -86,9 +87,17 @@ ${body}
       <h2>대관</h2>
       <ul>
         <li><a href="/inquiry">대관 문의·견적 요청</a></li>
+        <li><a href="/brochure">공간소개서 받기</a></li>
         <li><a href="/my">내 문의 조회</a></li>
         <li><a href="/cases">대관 사례</a></li>
         <li><a href="/guide">이용 안내</a></li>
+      </ul>
+    </div>
+    <div class="foot-col">
+      <h2>파트너</h2>
+      <ul>
+        <li><a href="/host">공간 파트너 모집</a></li>
+        <li><a href="/host/center">호스트센터</a></li>
       </ul>
     </div>
     <div class="foot-col">
@@ -112,8 +121,8 @@ ${bar ? `<nav class="mbar" aria-label="빠른 문의">
   <a class="mbar-main" href="/inquiry">대관 문의</a>
   ${ch.kakao ? `<a class="mbar-sub" href="${esc(ch.kakao)}" target="_blank" rel="noopener">카카오톡</a>` : `<a class="mbar-sub" href="/my">내 문의 조회</a>`}
 </nav>` : ''}
-<script src="/assets/js/site.js?v=3" defer></script>
-${scripts.map((src) => `<script src="${src}?v=3" defer></script>`).join('\n')}
+<script src="/assets/js/site.js?v=4" defer></script>
+${scripts.map((src) => `<script src="${src}?v=4" defer></script>`).join('\n')}
 </body>
 </html>`;
 }

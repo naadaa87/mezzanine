@@ -142,10 +142,13 @@ window.MZ = (() => {
 
   // ── 화면 틀 ─────────────────────────────────────────────────
   const NAV = [
-    ['', '대시보드'], ['inquiries', '문의 관리'], ['quotes', '견적 관리'], ['bookings', '예약·일정'], ['customers', '고객 관리'],
-    [null, '사이트 콘텐츠'], ['venues', '지점 정보'], ['photos', '사진'], ['cases', '대관 사례'], ['faqs', 'FAQ·이용 안내'], ['rates', '요금표'],
+    ['', '대시보드'], ['kpi', 'KPI·성과'],
+    [null, '대관 고객'], ['inquiries', '문의 관리'], ['leads', '소개서 요청'], ['quotes', '견적 관리'], ['bookings', '예약·일정'], ['customers', '고객 관리'],
+    [null, '공간 파트너'], ['partners', '입점 문의'], ['hosts', '호스트'], ['settlements', '정산'],
+    [null, '사이트 콘텐츠'], ['venues', '지점 정보'], ['photos', '사진'], ['files', '공간소개서'], ['cases', '대관 사례'], ['faqs', 'FAQ·이용 안내'], ['rates', '요금표'],
     [null, '운영'], ['settings', '설정'],
   ];
+  const BADGE_KEY = { inquiries: 'inquiries', leads: 'leads', partners: 'partners', hosts: 'hosts' };
 
   function shell() {
     app.innerHTML = `<div class="shell">
@@ -172,7 +175,7 @@ window.MZ = (() => {
     if (!nav) return;
     nav.innerHTML = NAV.map(([key, label]) =>
       key === null ? `<h2>${label}</h2>`
-        : `<a href="#/${key}" class="${cur === key ? 'is-on' : ''}"><span>${label}</span>${key === 'inquiries' && S.newCount ? `<span class="badge">${S.newCount}</span>` : ''}</a>`
+        : `<a href="#/${key}" class="${cur === key ? 'is-on' : ''}"><span>${label}</span>${BADGE_KEY[key] && S.badges?.[BADGE_KEY[key]] ? `<span class="badge">${S.badges[BADGE_KEY[key]]}</span>` : ''}</a>`
     ).join('');
   }
 
@@ -187,6 +190,8 @@ window.MZ = (() => {
     const main = old.cloneNode(false);
     old.replaceWith(main);
     drawNav();
+    // 메뉴 옆 숫자(새 문의·소개서 요청·입점 문의·호스트 메시지)
+    api('/badges').then((b) => { S.badges = b; drawNav(); }).catch(() => {});
     const view = views[name] || views.dashboard;
     main.innerHTML = '<p class="boot">불러오는 중입니다.</p>';
     try {
@@ -219,7 +224,6 @@ window.MZ = (() => {
     const d = await api('/dashboard');
     const E = S.enums;
     S.newCount = d.byStatus.new || 0;
-    drawNav();
     const open = ['new', 'consulting', 'quoted', 'contracting'].reduce((s, k) => s + (d.byStatus[k] || 0), 0);
     const maxV = Math.max(1, ...d.byVenue.map((x) => x.n));
     const pipe = ['new', 'consulting', 'quoted', 'contracting', 'confirmed', 'done'];

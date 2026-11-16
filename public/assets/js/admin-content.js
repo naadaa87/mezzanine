@@ -93,7 +93,7 @@
           <div id="v-access">${kvRows(v.access)}</div><button type="button" class="btn btn-sm" data-add="v-access">교통 항목 추가</button>
           <div class="g2" style="margin-top:14px"><label class="f"><span>주차</span><input type="text" name="parking" value="${esc(v.parking || '')}"></label><label class="f"><span>유튜브 영상 ID <small>주소의 v= 뒤 11자</small></span><input type="text" name="video" value="${esc(v.video || '')}"></label>
             <label class="f"><span>네이버 지도 링크</span><input type="url" name="map_naver" value="${esc(v.map?.naver || '')}"></label><label class="f"><span>카카오맵 링크</span><input type="url" name="map_kakao" value="${esc(v.map?.kakao || '')}"></label>
-            <label class="f"><span>공간 소개서 링크</span><input type="url" name="brochure" value="${esc(v.brochure || '')}"></label><label class="f"><span>지점 인스타그램</span><input type="url" name="instagram" value="${esc(v.instagram || '')}"></label></div>
+            <label class="f"><span>공간소개서 PDF 드라이브 링크 <small>링크가 있는 모든 사용자 공유</small></span><input type="url" name="brochure" value="${esc(v.brochure || '')}"></label><label class="f"><span>지점 인스타그램</span><input type="url" name="instagram" value="${esc(v.instagram || '')}"></label></div>
           <label class="f"><span>드라이브 영상 ID <small>쉼표로 구분</small></span><input type="text" name="drive_videos" value="${esc((v.drive_videos || []).join(', '))}"></label>
         </section>
         <div class="savebar"><button type="button" class="btn btn-danger" id="v-del" style="margin-right:auto">지점 삭제</button><button class="btn btn-point" type="submit">저장</button></div>

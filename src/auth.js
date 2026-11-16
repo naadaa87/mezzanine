@@ -84,3 +84,37 @@ export function sameOrigin(request) {
     return false;
   }
 }
+
+// ── 호스트(공간 파트너) 로그인 ───────────────────────────────
+const HOST_COOKIE = 'mz_host';
+
+export async function createHostSession(env, request, hostId) {
+  const token = randomToken(32);
+  const expires = new Date(Date.now() + SESSION_DAYS * 86400 * 1000).toISOString();
+  await env.DB.batch([
+    env.DB.prepare('DELETE FROM host_sessions WHERE expires_at < ?').bind(nowIso()),
+    env.DB.prepare('INSERT INTO host_sessions(token_hash, host_id, expires_at, created_at) VALUES(?,?,?,?)').bind(await sha256hex(token), hostId, expires, nowIso()),
+    env.DB.prepare('UPDATE hosts SET last_login_at=? WHERE id=?').bind(nowIso(), hostId),
+  ]);
+  const secure = new URL(request.url).protocol === 'https:' ? ' Secure;' : '';
+  return `${HOST_COOKIE}=${token}; Path=/; HttpOnly;${secure} SameSite=Lax; Max-Age=${SESSION_DAYS * 86400}`;
+}
+
+export async function destroyHostSession(env, request) {
+  const token = readCookie(request, HOST_COOKIE);
+  if (token) await env.DB.prepare('DELETE FROM host_sessions WHERE token_hash=?').bind(await sha256hex(token)).run();
+  return `${HOST_COOKIE}=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0`;
+}
+
+export async function currentHost(env, request) {
+  const token = readCookie(request, HOST_COOKIE);
+  if (!token) return null;
+  const row = await env.DB.prepare(
+    `SELECT h.id, h.login, h.name, h.company, h.phone, h.email, h.venues, h.share_rate, h.status, h.unread_host
+     FROM host_sessions s JOIN hosts h ON h.id = s.host_id WHERE s.token_hash = ? AND s.expires_at > ?`
+  )
+    .bind(await sha256hex(token), nowIso())
+    .first();
+  if (!row || row.status !== 'active') return null;
+  return row;
+}

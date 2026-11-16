@@ -2,6 +2,7 @@ import { esc } from '../util.js';
 import { page, coverOf, venueBy, statusChip, ARROW, KIND_LABEL } from './layout.js';
 import { sectionSVG } from './diagram.js';
 import { EVENT_TYPES, OPTION_LIST, BUDGETS } from '../seed.js';
+import { brochureVenues } from '../api-public.js';
 
 const PROCESS = [
   ['문의 접수', '지점과 일정, 행사 내용을 적어 문의를 남깁니다. 접수번호가 바로 발급됩니다.'],
@@ -35,6 +36,46 @@ const brandNote = (list) =>
   list.some((m) => m.kind === 'brand')
     ? '<p class="gal-note">‘브랜드 이미지’ 표시가 있는 사진은 실제 공간 사진을 바탕으로 보정한 이미지로, 세부 모습이 지금과 다를 수 있습니다.</p>'
     : '';
+
+const hasBrochure = (content, v) => brochureVenues(content).some((x) => x.slug === v.slug);
+const asset = (v, name, sm = false) => `/assets/venue/${v.slug}/${name}${sm ? '.sm' : ''}.jpg`;
+
+// 소개서와 같은 구성의 층별 안내: 층을 고르면 큰 사진, 도면, 핵심 요소, 세부 사진이 나옵니다
+function floorGuide(content, v) {
+  const g = v.guide;
+  if (!g || !(g.floors || []).length) return '';
+  const fl = g.floors;
+  return `<section class="sec sec-tone fg" aria-labelledby="h-fg"><div class="wrap">
+    <div class="sec-head sec-head-row"><h2 id="h-fg">층별 안내</h2>${hasBrochure(content, v) ? `<a class="arrow-link" href="/brochure?venue=${esc(v.slug)}">소개서(PDF)로 받기 ${ARROW}</a>` : ''}</div>
+    ${g.summary ? `<p class="fg-sum">${esc(g.summary)}</p>` : ''}
+    <div class="fg-box" data-tabs>
+      <div class="tabs fg-tabs" role="tablist" aria-label="층 선택">
+        ${fl.map((f, i) => `<button role="tab" type="button" id="fgt-${esc(f.id)}" aria-controls="fgp-${esc(f.id)}" aria-selected="${i === 0}" tabindex="${i === 0 ? 0 : -1}">${esc(f.bldg)} <b>${esc(f.floor)}</b></button>`).join('')}
+      </div>
+      ${fl.map((f, i) => `<div class="fg-pane" role="tabpanel" id="fgp-${esc(f.id)}" aria-labelledby="fgt-${esc(f.id)}"${i === 0 ? '' : ' hidden'} data-gallery>
+        <button type="button" class="gal-item fg-main" data-full="${asset(v, f.id)}" data-cap="${esc(`${f.bldg} ${f.floor} · ${f.sub}`)}" aria-label="${esc(`${f.bldg} ${f.floor}`)} 사진 크게 보기"><img src="${asset(v, f.id, true)}" alt="${esc(`${v.name} ${f.bldg} ${f.floor}`)}" loading="lazy" decoding="async" width="720" height="720"></button>
+        <div class="fg-side">
+          <p class="en" lang="en">${esc(f.bldg.replace('동', ''))} BUILDING — ${esc(f.floor)}</p>
+          <h3>${esc(f.bldg)} ${esc(f.floor)}<small>${esc(f.sub)}</small></h3>
+          <p class="fg-hl"><span class="fg-k">핵심 요소</span>${f.highlights.map((h) => `<span>${esc(h)}</span>`).join('')}</p>
+          <figure class="fg-plan">
+            <button type="button" class="gal-item" data-full="/assets/venue/${esc(v.slug)}/${esc(f.id)}-plan.jpg" data-cap="${esc(`${f.bldg} ${f.floor} 도면`)}" aria-label="도면 크게 보기"><img src="/assets/venue/${esc(v.slug)}/${esc(f.id)}-plan.jpg" alt="${esc(`${f.bldg} ${f.floor} 도면`)}" loading="lazy" decoding="async"></button>
+            <figcaption>${(g.legend || []).map(([c, l]) => `<span><i style="background:${esc(c)}"></i>${esc(l)}</span>`).join('')}</figcaption>
+          </figure>
+          <div class="fg-details">${(f.details || []).map(([id, cap]) => `<figure><button type="button" class="gal-item" data-full="${asset(v, id)}" data-cap="${esc(`${f.bldg} ${f.floor} · ${cap}`)}" aria-label="${esc(cap)} 크게 보기"><img src="${asset(v, id, true)}" alt="" loading="lazy" decoding="async" width="669" height="355"></button><figcaption>${esc(cap)}</figcaption></figure>`).join('')}</div>
+        </div>
+      </div>`).join('')}
+    </div>
+  </div></section>`;
+}
+
+// 가까운 역: 소개서처럼 걸어서 걸리는 시간을 크게 보여 줍니다
+function stationList(v) {
+  return v.access.map((a) => {
+    const min = String(a.value).match(/(\d+)\s*분/);
+    return `<li>${min ? `<span class="st-min"><b>${min[1].padStart(2, '0')}</b><small>분</small></span>` : '<span class="st-min st-min-text"></span>'}<span class="st-name">${esc(a.label)}<small>${esc(a.value)}</small></span></li>`;
+  }).join('');
+}
 
 // 구글드라이브 영상: 미리보기 이미지를 누르면 드라이브 플레이어가 열립니다.
 function driveVideos(ids, label) {
@@ -159,7 +200,7 @@ export function homePage(content, origin) {
               <p class="vrow-where">${soon || !v.address ? esc(v.district) : esc(v.address.replace(/^서울\s*/, ''))}</p>
               <p class="vrow-line">${esc(v.headline)}</p>
               ${v.stats.length ? `<dl class="mini">${v.stats.slice(0, 3).map((x) => `<div><dt>${esc(x.label)}</dt><dd>${esc(x.value)}</dd></div>`).join('')}</dl>` : ''}
-              <a class="arrow-link" href="${soon ? `/inquiry?venue=${esc(v.slug)}` : `/venues/${esc(v.slug)}`}">${soon ? '오픈 알림 신청' : '공간 보기'} ${ARROW}</a>
+              <p class="vrow-links"><a class="arrow-link" href="${soon ? `/inquiry?venue=${esc(v.slug)}` : `/venues/${esc(v.slug)}`}">${soon ? '오픈 알림 신청' : '공간 보기'} ${ARROW}</a>${hasBrochure(content, v) ? `<a class="sub-link" href="/brochure?venue=${esc(v.slug)}">소개서 받기</a>` : ''}</p>
             </div>
           </article>`;
         }).join('')}
@@ -204,6 +245,19 @@ export function homePage(content, origin) {
     </div>
   </section>` : '';
 
+  const decks = brochureVenues(content);
+  const deckBand = decks.length ? `<section class="sec deck-band" aria-labelledby="h-decks">
+    <div class="wrap deck-band-in">
+      <div class="deck-band-txt">
+        <p class="en" lang="en">VENUE GUIDE</p>
+        <h2 id="h-decks">지점별 공간소개서</h2>
+        <p>건물과 층별 구성, 도면, 실제 공간 사진, 오시는 길을 한 파일에 담았습니다. 내부 보고나 기획서에 바로 쓰실 수 있습니다.</p>
+        <a class="btn btn-dark btn-lg" href="/brochure">소개서 받기</a>
+      </div>
+      <div class="deck-band-covers">${decks.slice(0, 2).map((v) => `<a href="/brochure?venue=${esc(v.slug)}" class="deck-mini"><img src="/assets/venue/${esc(v.slug)}/deck-cover.jpg" alt="${esc(v.name)} 소개서 표지" loading="lazy" decoding="async" width="720" height="405"><span>${esc(v.name)}</span></a>`).join('')}</div>
+    </div>
+  </section>` : '';
+
   const process = `<section class="sec sec-tone" aria-labelledby="h-process">
     <div class="wrap">
       <div class="sec-head"><h2 id="h-process">대관은 이렇게 진행됩니다</h2></div>
@@ -223,7 +277,7 @@ export function homePage(content, origin) {
     sameAs: Object.values(s.channels || {}).filter(Boolean),
   };
 
-  return page({ content, origin, path: '/', title: '', body: hero + intro + figure + venueRows + uses + caseSec + process + cta, jsonLd });
+  return page({ content, origin, path: '/', title: '', body: hero + intro + figure + venueRows + uses + caseSec + deckBand + process + cta, jsonLd });
 }
 
 // ── 공간 목록 ─────────────────────────────────────────────────
@@ -249,6 +303,7 @@ export function venuesPage(content, origin) {
             <p class="vcard-sum">${esc(v.headline)}</p>
             ${v.stats.length ? `<dl class="mini">${v.stats.map((x) => `<div><dt>${esc(x.label)}</dt><dd>${esc(x.value)}</dd></div>`).join('')}</dl>` : ''}
             <p class="vcard-links"><a class="btn btn-line" href="/venues/${esc(v.slug)}">공간 자세히 보기</a><a class="btn btn-dark" href="/inquiry?venue=${esc(v.slug)}">${soon ? '오픈 알림 신청' : '이 공간 문의'}</a></p>
+            ${hasBrochure(content, v) ? `<p class="vcard-sub"><a class="sub-link" href="/brochure?venue=${esc(v.slug)}">공간소개서(PDF) 받기</a></p>` : ''}
           </div>
         </article>`;
       }).join('')}
@@ -301,7 +356,7 @@ export function venuePage(content, origin, v) {
     ${v.stats.length ? `<dl class="spec">${v.stats.map((x) => `<div><dt>${esc(x.label)}</dt><dd>${esc(x.value)}</dd></div>`).join('')}</dl>` : ''}
     <div class="vhead-cta">
       <a class="btn btn-dark btn-lg" href="/inquiry?venue=${esc(v.slug)}">${coming ? '오픈 알림 신청' : '이 공간 대관 문의'}</a>
-      ${v.brochure ? `<a class="btn btn-line btn-lg" href="${esc(v.brochure)}" target="_blank" rel="noopener">공간 소개서 (PDF)</a>` : ''}
+      ${hasBrochure(content, v) ? `<a class="btn btn-line btn-lg" href="/brochure?venue=${esc(v.slug)}">공간소개서 받기 (PDF)</a>` : ''}
       ${v.map?.naver ? `<a class="btn btn-line btn-lg" href="${esc(v.map.naver)}" target="_blank" rel="noopener">네이버 지도</a>` : ''}
     </div>
   </div></section>`;
@@ -337,11 +392,10 @@ export function venuePage(content, origin, v) {
   const access = !coming ? `<section class="sec" aria-labelledby="h-access"><div class="wrap two">
     <div>
       <h2 id="h-access">오시는 길</h2>
-      <dl class="rows">
-        <div><dt>주소</dt><dd>${esc(v.address)}</dd></div>
-        ${v.access.map((a) => `<div><dt>${esc(a.label)}</dt><dd>${esc(a.value)}</dd></div>`).join('')}
-        ${v.parking ? `<div><dt>주차</dt><dd>${esc(v.parking)}</dd></div>` : ''}
-      </dl>
+      <p class="addr">${esc(v.address)}</p>
+      ${v.access.length ? `<ul class="stations">${stationList(v)}</ul>` : ''}
+      ${v.parking ? `<dl class="rows"><div><dt>주차</dt><dd>${esc(v.parking)}</dd></div></dl>` : ''}
+      ${v.map_image ? `<div data-gallery><button type="button" class="gal-item map-img" data-full="${esc(v.map_image)}" data-cap="${esc(v.name)} 주변 지도" aria-label="주변 지도 크게 보기"><img src="${esc(v.map_image)}" alt="${esc(v.name)} 주변 지도와 가까운 역" loading="lazy" decoding="async"></button></div>` : ''}
       <p class="links">
         ${v.map?.naver ? `<a class="btn btn-line" href="${esc(v.map.naver)}" target="_blank" rel="noopener">네이버 지도</a>` : ''}
         ${v.map?.kakao ? `<a class="btn btn-line" href="${esc(v.map.kakao)}" target="_blank" rel="noopener">카카오맵</a>` : ''}
@@ -379,7 +433,7 @@ export function venuePage(content, origin, v) {
   return page({
     content, origin, path: `/venues/${v.slug}`, title: `${v.name} 대관`, active: 'venues', jsonLd, image: ogImage(content, 'venue', v.slug),
     description: `${v.name}${v.address ? ` (${v.address})` : ''}. ${v.headline}. ${v.uses.length ? v.uses.join(', ') + ' 대관 문의.' : ''}`,
-    body: head + photos + spec + about + plan + access + caseSec + cta,
+    body: head + photos + spec + about + floorGuide(content, v) + plan + access + caseSec + cta,
   });
 }
 

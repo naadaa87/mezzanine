@@ -2,10 +2,11 @@ import { json, fail, readJson, clip, normPhone, isDate, isTime, toInt, nowIso, k
 import { ensureSchema, getContent, setContent, bustContent, logActivity, rateLimit, processPendingMedia } from './db.js';
 import { hashPassword, verifyPassword, validPassword, createSession, destroySession, currentAdmin, sameOrigin } from './auth.js';
 import { createInquiry } from './api-public.js';
+import { handleAdminMore } from './api-admin-more.js';
 import { folderIdFrom, listDriveFolder, DRIVE_ID } from './drive.js';
-import { DEFAULTS, EVENT_TYPES, OPTION_LIST, BUDGETS, INQUIRY_STATUS, BOOKING_STATUS, QUOTE_STATUS } from './seed.js';
+import { DEFAULTS, EVENT_TYPES, OPTION_LIST, BUDGETS, INQUIRY_STATUS, BOOKING_STATUS, QUOTE_STATUS, LEAD_STATUS, PARTNER_STATUS, HOST_STATUS, SETTLE_STATUS, PARTNER_MODELS } from './seed.js';
 
-const CONTENT_KEYS = { settings: 'object', venues: 'array', cases: 'array', faqs: 'array', guide: 'object', rates: 'array' };
+const CONTENT_KEYS = { settings: 'object', venues: 'array', cases: 'array', faqs: 'array', guide: 'object', rates: 'array', host_notices: 'array' };
 
 function calcQuote(itemsIn, discountIn, vatMode) {
   const items = (Array.isArray(itemsIn) ? itemsIn : []).slice(0, 60).map((it) => ({
@@ -114,11 +115,14 @@ export async function handleAdminApi(request, env, ctx, url) {
   const today = kstDate();
   let m;
 
+  const more = await handleAdminMore({ request, env, ctx, url, p, method, actor, content });
+  if (more) return more;
+
   if (p === '/bootstrap' && method === 'GET') {
     return json({
       ok: true, admin,
-      content: { settings: content.settings, venues: content.venues, cases: content.cases, faqs: content.faqs, guide: content.guide, rates: content.rates },
-      enums: { EVENT_TYPES, OPTION_LIST, BUDGETS, INQUIRY_STATUS, BOOKING_STATUS, QUOTE_STATUS },
+      content: { settings: content.settings, venues: content.venues, cases: content.cases, faqs: content.faqs, guide: content.guide, rates: content.rates, host_notices: content.host_notices },
+      enums: { EVENT_TYPES, OPTION_LIST, BUDGETS, INQUIRY_STATUS, BOOKING_STATUS, QUOTE_STATUS, LEAD_STATUS, PARTNER_STATUS, HOST_STATUS, SETTLE_STATUS, PARTNER_MODELS },
     });
   }
 
@@ -429,7 +433,7 @@ export async function handleAdminApi(request, env, ctx, url) {
   }
 
   // ── 콘텐츠(지점·사례·FAQ·요금표·설정) ─────────────────────────
-  if ((m = p.match(/^\/content\/([a-z]+)$/)) && CONTENT_KEYS[m[1]]) {
+  if ((m = p.match(/^\/content\/([a-z_]+)$/)) && CONTENT_KEYS[m[1]]) {
     const key = m[1];
     if (method === 'PUT') {
       const b = await readJson(request, 400_000);

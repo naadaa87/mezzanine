@@ -1,13 +1,14 @@
 import { json, fail, readJson, clip, normPhone, isDate, isTime, toInt, nowIso, kstDate, randomCode, randomToken, clientIp, parseJson } from './util.js';
-import { ensureSchema, getContent, logActivity, rateLimit, storeDriveMedia } from './db.js';
+import { ensureSchema, getContent, logActivity, rateLimit, storeMedia } from './db.js';
+import { ensureBrochure, fileResponse } from './files.js';
 import { sameOrigin } from './auth.js';
 import { notify } from './notify.js';
 import { fetchDriveImage, DRIVE_ID } from './drive.js';
-import { EVENT_TYPES, INQUIRY_STATUS } from './seed.js';
+import { EVENT_TYPES, INQUIRY_STATUS, PARTNER_MODELS } from './seed.js';
 
 const venueName = (content, slug) => content.venues.find((v) => v.slug === slug)?.name || '지점 미정';
 
-async function findOrCreateCustomer(env, { name, company, phone, email }) {
+export async function findOrCreateCustomer(env, { name, company, phone, email }) {
   const pn = normPhone(phone);
   let row = null;
   if (pn) row = await env.DB.prepare('SELECT id FROM customers WHERE phone_norm=? LIMIT 1').bind(pn).first();
@@ -115,6 +116,80 @@ export async function handlePublicApi(request, env, ctx, url) {
     } catch (e) {
       return fail(400, e.message || '문의를 접수하지 못했습니다.');
     }
+  }
+
+  // 공간소개서 요청: 연락처를 남기면 내려받기 링크를 드립니다
+  if (p === '/api/brochure' && method === 'POST') {
+    let b;
+    try { b = await readJson(request); } catch (e) { return fail(400, e.message); }
+    if (b.hp) return json({ ok: true, code: 'BR-000000-0000', token: '', files: [] });
+    if (!b.agree) return fail(400, '개인정보 수집·이용에 동의해 주세요.');
+    const avail = brochureVenues(content);
+    const picked = (Array.isArray(b.venues) ? b.venues : [b.venues]).filter((x) => avail.some((v) => v.slug === x));
+    if (!picked.length) return fail(400, '받으실 지점 소개서를 골라 주세요.');
+    const name = clip(b.name, 40);
+    const phone = clip(b.phone, 30);
+    const email = clip(b.email, 120);
+    const company = clip(b.company, 80);
+    if (!name) return fail(400, '이름을 적어 주세요.');
+    if (normPhone(phone).length < 9) return fail(400, '연락처를 확인해 주세요.');
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return fail(400, '이메일 주소를 확인해 주세요.');
+    if (!(await rateLimit(env, `brochure:${ip}`, 8, 600))) return fail(429, '요청이 너무 잦습니다. 10분 뒤에 다시 시도해 주세요.');
+    const customerId = await findOrCreateCustomer(env, { name, company, phone, email });
+    const code = `BR-${kstDate().slice(2).replace(/-/g, '')}-${randomCode(4)}`;
+    const token = randomToken(18);
+    const now = nowIso();
+    let ref = '';
+    try { ref = new URL(clip(b.ref, 300)).hostname.replace(/^www\./, ''); } catch {}
+    await env.DB.prepare(
+      `INSERT INTO leads(code, token, venues, customer_id, name, company, phone, email, event_type, event_month, headcount, message, wants_call, status, referrer, created_at, updated_at)
+       VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,'new',?,?,?)`
+    ).bind(code, token, JSON.stringify(picked), customerId, name, company, phone, email,
+      EVENT_TYPES.includes(b.event_type) ? b.event_type : clip(b.event_type, 30), clip(b.event_month, 20),
+      toInt(b.headcount, 0) || null, clip(b.message, 1000), b.wants_call ? 1 : 0, ref.slice(0, 80), now, now).run();
+    // 파일을 미리 받아 둡니다(첫 내려받기를 빠르게)
+    for (const slug of picked) {
+      const v = content.venues.find((x) => x.slug === slug);
+      if (v) ctx.waitUntil(ensureBrochure(env, v).catch(() => {}));
+    }
+    notify(env, ctx, content.settings,
+      `[메자닌] 소개서 요청 ${code}\n${picked.map((x) => venueName(content, x)).join(', ')} / ${name}${company ? ` (${company})` : ''}${b.wants_call ? ' / 상담 연락 희망' : ''}`);
+    return json({ ok: true, code, token, files: brochureLinks(content, picked, code, token) });
+  }
+
+  // 이미 받은 소개서 링크 다시 보기(같은 브라우저에서)
+  if (p === '/api/brochure/links' && method === 'GET') {
+    const row = await env.DB.prepare('SELECT code, token, venues, created_at FROM leads WHERE code=?').bind(clip(url.searchParams.get('code'), 30).toUpperCase()).first();
+    if (!row || row.token !== url.searchParams.get('t') || Date.now() - Date.parse(row.created_at) > LINK_DAYS * 86400000) return fail(404, '링크가 만료됐습니다.');
+    return json({ ok: true, files: brochureLinks(content, parseJson(row.venues, []), row.code, row.token) });
+  }
+
+  // 공간 파트너(건물주) 입점 문의
+  if (p === '/api/partners' && method === 'POST') {
+    let b;
+    try { b = await readJson(request); } catch (e) { return fail(400, e.message); }
+    if (b.hp) return json({ ok: true, code: 'PT-000000-0000' });
+    if (!b.agree) return fail(400, '개인정보 수집·이용에 동의해 주세요.');
+    const name = clip(b.name, 40);
+    const phone = clip(b.phone, 30);
+    const email = clip(b.email, 120);
+    const address = clip(b.address, 200);
+    if (!name) return fail(400, '이름을 적어 주세요.');
+    if (normPhone(phone).length < 9) return fail(400, '연락처를 확인해 주세요.');
+    if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return fail(400, '이메일 주소를 확인해 주세요.');
+    if (!address) return fail(400, '건물 위치를 적어 주세요. 동네 이름까지만 적으셔도 됩니다.');
+    if (!(await rateLimit(env, `partner:${ip}`, 5, 600))) return fail(429, '요청이 너무 잦습니다. 10분 뒤에 다시 시도해 주세요.');
+    const code = `PT-${kstDate().slice(2).replace(/-/g, '')}-${randomCode(4)}`;
+    const now = nowIso();
+    let link = clip(b.link, 400);
+    if (link && !/^https?:\/\//.test(link)) link = '';
+    await env.DB.prepare(
+      `INSERT INTO partner_apps(code, name, relation, company, phone, email, address, building_type, floors, area, vacancy, available_from, model, link, message, status, created_at, updated_at)
+       VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,'new',?,?)`
+    ).bind(code, name, clip(b.relation, 20), clip(b.company, 80), phone, email, address, clip(b.building_type, 30), clip(b.floors, 40), clip(b.area, 40),
+      clip(b.vacancy, 40), clip(b.available_from, 40), PARTNER_MODELS.includes(b.model) ? b.model : clip(b.model, 40), link, clip(b.message, 3000), now, now).run();
+    notify(env, ctx, content.settings, `[메자닌] 공간 파트너 입점 문의 ${code}\n${address} / ${name}${b.relation ? ` (${clip(b.relation, 20)})` : ''}\n${clip(b.message, 200)}`);
+    return json({ ok: true, code });
   }
 
   // 접수번호 + 연락처로 내 문의 찾기
@@ -245,11 +320,12 @@ export async function serveMedia(request, env, ctx, id) {
   if (!row) return new Response('Not found', { status: 404 });
   let body = row.body;
   let type = row.mime || 'image/webp';
-  if (!body && String(row.src || '').startsWith('drive:')) {
-    const img = await storeDriveMedia(env, row);
-    if (!img) return new Response('Not available', { status: 404, headers: { 'cache-control': 'no-store' } });
-    body = img.buf;
-    type = img.type;
+  if (!body && /^(drive|asset):/.test(String(row.src || ''))) {
+    const ok = await storeMedia(env, row);
+    if (!ok) return new Response('Not available', { status: 404, headers: { 'cache-control': 'no-store' } });
+    const again = await env.DB.prepare(`SELECT mime, ${small ? 'COALESCE(thumb, data)' : 'data'} AS body FROM media WHERE id=?`).bind(row.id).first();
+    body = again?.body;
+    type = again?.mime || type;
   }
   if (!body) return new Response('Not found', { status: 404 });
   if (!(body instanceof ArrayBuffer)) body = new Uint8Array(body);
@@ -281,4 +357,34 @@ export async function serveVideoPoster(request, env, ctx, driveId) {
     ctx.waitUntil(cache.put(key, res.clone()));
   } catch {}
   return res;
+}
+
+// ── 공간소개서 ───────────────────────────────────────────────
+export const LINK_DAYS = 30;
+
+// 소개서를 내려받을 수 있는 지점: 드라이브 링크가 있거나 관리자가 파일을 올린 곳
+export function brochureVenues(content) {
+  return content.venues.filter((v) => v.status !== 'coming' && (v.brochure || (content.brochures || []).includes(v.slug)));
+}
+
+function brochureLinks(content, slugs, code, token) {
+  return slugs
+    .map((slug) => content.venues.find((v) => v.slug === slug))
+    .filter(Boolean)
+    .map((v) => ({ slug: v.slug, name: v.name, label: v.brochure_label || `${v.name} 공간소개서`, url: `/brochure/download/${code}/${token}/${v.slug}` }));
+}
+
+export async function serveBrochure(request, env, ctx, code, token, slug) {
+  await ensureSchema(env);
+  const content = await getContent(env);
+  const lead = await env.DB.prepare('SELECT id, token, venues, created_at FROM leads WHERE code=?').bind(String(code).toUpperCase()).first();
+  if (!lead || lead.token !== token) return { error: '내려받기 주소가 올바르지 않습니다. 소개서 받기 화면에서 다시 신청해 주세요.' };
+  if (Date.now() - Date.parse(lead.created_at) > LINK_DAYS * 86400000)
+    return { error: `내려받기 링크는 신청 후 ${LINK_DAYS}일 동안 쓸 수 있습니다. 소개서 받기 화면에서 다시 신청해 주세요.` };
+  const v = brochureVenues(content).find((x) => x.slug === slug);
+  if (!v) return { error: '해당 지점의 소개서를 찾지 못했습니다.' };
+  const info = await ensureBrochure(env, v);
+  if (!info) return { error: '소개서 파일을 지금 준비하지 못했습니다. 남겨 주신 연락처로 담당자가 직접 보내 드리겠습니다.', notify: true, lead };
+  await env.DB.prepare('UPDATE leads SET downloads=downloads+1, last_download_at=? WHERE id=?').bind(nowIso(), lead.id).run();
+  return { res: fileResponse(env, info, `메자닌_${v.name.replace('메자닌 ', '')}_공간소개서.pdf`, { ascii: `mezzanine-${v.slug}-venue-guide.pdf` }) };
 }
