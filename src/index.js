@@ -1,5 +1,6 @@
 import { fail } from './util.js';
-import { getContent, processPendingMedia } from './db.js';
+import { getContent, processPendingMedia, ensureSchema } from './db.js';
+import { ensureBrochure } from './files.js';
 import { serveCalendar } from './ics.js';
 import { handlePublicApi, serveMedia, serveVideoPoster, serveBrochure } from './api-public.js';
 import { handleHostApi } from './api-host.js';
@@ -14,6 +15,13 @@ let lastPending = 0;
 export default {
   async scheduled(event, env, ctx) {
     ctx.waitUntil(processPendingMedia(env, 12).catch((e) => console.error(e)));
+    // 지점 소개서 PDF를 미리 받아 둡니다(없거나 드라이브 링크가 바뀐 경우만)
+    ctx.waitUntil(
+      (async () => {
+        const content = await getContent(env, true);
+        for (const v of content.venues) if (v.brochure) await ensureBrochure(env, v).catch(() => {});
+      })().catch((e) => console.error(e))
+    );
   },
 
   async fetch(request, env, ctx) {
@@ -22,6 +30,19 @@ export default {
     try {
       if (p.startsWith('/api/admin')) return await handleAdminApi(request, env, ctx, url);
       if (p.startsWith('/api/host')) return await handleHostApi(request, env, ctx, url);
+      // 운영 점검용: 사진·소개서 준비 상태(개인 정보 없음)
+      if (p === '/api/status') {
+        await ensureSchema(env);
+        const [schema, media, files] = await env.DB.batch([
+          env.DB.prepare(`SELECT v FROM meta WHERE k='schema'`),
+          env.DB.prepare(`SELECT SUM(size>0) ready, SUM(size IS NULL OR size=0) pending, SUM(fetch_state=-1) failed FROM media`),
+          env.DB.prepare(`SELECT k, size, parts, state, src FROM files WHERE k LIKE 'brochure:%'`),
+        ]);
+        return new Response(JSON.stringify({
+          ok: true, schema: Number(schema.results[0]?.v || 0), media: media.results[0],
+          brochures: Object.fromEntries(files.results.map((f) => [f.k.slice(9), { state: f.state === 1 ? 'ready' : f.state === -1 ? 'failed' : 'saving', size: f.size, from: String(f.src).startsWith('drive:') ? 'drive' : f.src }])),
+        }), { headers: { 'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store' } });
+      }
       if (p.startsWith('/api/')) return await handlePublicApi(request, env, ctx, url);
 
       const media = p.match(/^\/media\/(\d+)$/);
