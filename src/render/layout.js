@@ -49,7 +49,7 @@ ${noindex ? '<meta name="robots" content="noindex">' : ''}
 <link rel="icon" href="/assets/img/favicon.svg" type="image/svg+xml">
 <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css">
-<link rel="stylesheet" href="/assets/css/site.css?v=5">
+<link rel="stylesheet" href="/assets/css/site.css?v=6">
 ${jsonLd ? `<script type="application/ld+json">${JSON.stringify(jsonLd).replace(/</g, '\\u003c')}</script>` : ''}
 </head>
 <body${bar ? ' class="has-bar"' : ''}>
@@ -119,8 +119,8 @@ ${bar ? `<nav class="mbar" aria-label="빠른 문의">
   <a class="mbar-main" href="/inquiry">견적 요청</a>
   ${ch.kakao ? `<a class="mbar-sub" href="${esc(ch.kakao)}" target="_blank" rel="noopener">카카오톡</a>` : `<a class="mbar-sub" href="/my">내 문의 조회</a>`}
 </nav>` : ''}
-<script src="/assets/js/site.js?v=5" defer></script>
-${scripts.map((src) => `<script src="${src}?v=5" defer></script>`).join('\n')}
+<script src="/assets/js/site.js?v=6" defer></script>
+${scripts.map((src) => `<script src="${src}?v=6" defer></script>`).join('\n')}
 </body>
 </html>`;
 }

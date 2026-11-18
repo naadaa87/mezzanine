@@ -218,9 +218,9 @@ export function homePage(content, origin) {
   const hero = `<section class="hx">
     <div class="wrap hx-in">
       <div class="hx-text">
-        <p class="badge">서울 통건물 대관 · ${openVenues.length}곳 운영${coming.length ? ` · ${coming.length}곳 오픈 준비` : ''}</p>
-        <h1>팝업, 전시, 파티.<br>통건물로 찾으세요.</h1>
-        <p class="hx-lead">날짜와 규모를 고르면 맞는 지점과 예약 상황을 바로 보여 드립니다. 견적 요청부터 계약까지 한 곳에서 이어집니다.</p>
+        <p class="badge">통건물 대관 브랜드</p>
+        <h1>팝업, 행사, 파티, 전시 등<br>공간전문 메자닌을 만나보세요</h1>
+        <p class="hx-lead">메자닌 삼성, 북가좌, 한남, 응암.<br>메자닌에서 행사와 모임의 품격을 높여보세요</p>
         <form class="search" id="search" action="/inquiry" method="get" aria-label="공간 찾기">
           <div class="search-grid">
             <label><span>지점</span><select name="venue"><option value="">전체 지점</option>${openVenues.map((v) => `<option value="${esc(v.slug)}">${esc(v.name)}</option>`).join('')}</select></label>
@@ -230,7 +230,7 @@ export function homePage(content, origin) {
           </div>
           <div class="search-foot">
             <p>고른 날짜가 비어 있는지, 협의 중인지 바로 알려 드립니다.</p>
-            <button class="btn btn-dark" type="submit">예약 가능일 확인</button>
+            <button class="btn btn-dark" type="submit">예약·견적 문의</button>
           </div>
           <div class="search-out" id="search-out" aria-live="polite" hidden></div>
         </form>

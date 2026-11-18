@@ -118,7 +118,7 @@ button { cursor: pointer; }
 .hx-in { display: grid; grid-template-columns: minmax(0, 6fr) minmax(0, 5fr); gap: 40px; align-items: stretch; }
 .hx-text { display: flex; flex-direction: column; justify-content: center; min-width: 0; }
 .hx-text .badge { align-self: flex-start; }
-.hx h1 { margin-top: 16px; font-weight: 800; font-size: clamp(2.3rem, 4.4vw, 3.3rem); line-height: 1.2; letter-spacing: -.045em; }
+.hx h1 { margin-top: 16px; font-weight: 800; font-size: clamp(2rem, 3.7vw, 2.85rem); line-height: 1.25; letter-spacing: -.045em; }
 .hx-lead { margin-top: 16px; font-size: 1.06rem; color: var(--ink-2); max-width: 32em; }
 .search { margin-top: 30px; background: #fff; border: 1px solid var(--gray-200); border-radius: var(--r); padding: 20px; box-shadow: var(--shadow); }
 .search-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; }
