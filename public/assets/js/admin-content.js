@@ -340,7 +340,7 @@
   views.cases = async (main) => {
     const cases = JSON.parse(JSON.stringify(S.content.cases));
     const draw = () => {
-      main.innerHTML = `<div class="head"><div><h1>대관 사례</h1><p>홈페이지의 대관 사례에 보이는 행사입니다. 위에 있는 순서대로, 처음 3개가 첫 화면에 나옵니다.</p></div>
+      main.innerHTML = `<div class="head"><div><h1>대관 사례</h1><p>홈페이지의 대관 사례에 보이는 행사입니다. 위에 있는 순서대로, 처음 4개가 홈 화면의 "최근 열린 행사"에 나옵니다.</p></div>
           <div class="head-actions"><button class="btn" type="button" id="c-add">사례 추가</button><button class="btn btn-point" type="button" id="c-save">저장</button></div></div>
         ${cases.map((c, i) => `<div class="rowed" data-i="${i}"><div class="rowed-head"><b>${esc(c.title || '새 사례')}</b><span><a class="btn-text small" href="#/photos/case:${esc(c.id)}">사진 관리</a> <button type="button" class="btn btn-sm" data-mv="-1" aria-label="위로">↑</button> <button type="button" class="btn btn-sm" data-mv="1" aria-label="아래로">↓</button> <button type="button" class="btn btn-sm btn-danger" data-rm>삭제</button></span></div>
           <div class="g4"><label class="f"><span>행사명</span><input type="text" data-k="title" value="${esc(c.title)}"></label><label class="f"><span>지점</span><select data-k="venue">${S.content.venues.map((v) => `<option value="${esc(v.slug)}"${v.slug === c.venue ? ' selected' : ''}>${esc(v.name)}</option>`).join('')}</select></label>
