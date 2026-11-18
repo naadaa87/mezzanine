@@ -43,6 +43,8 @@
     const to = q.get('to') || presets.month[1];
     const venue = q.get('venue') || '';
     const d = await api(`/kpi?from=${from}&to=${to}${venue ? `&venue=${venue}` : ''}`);
+    const K = window.MZK;
+    const B = d.behavior;
     const which = Object.entries(presets).find(([, [a, b]]) => a === d.from && b === d.to)?.[0] || '';
     const go = (f, t, v = venue) => (location.hash = `#/kpi?from=${f}&to=${t}${v ? `&venue=${v}` : ''}`);
     const avg = d.bookings ? Math.round(d.revenue / d.bookings) : 0;
@@ -59,15 +61,27 @@
     };
 
     main.innerHTML = `
-      <div class="head"><div><h1>KPI·성과</h1><p>${esc(d.from)} ~ ${esc(d.to)}${venue ? ` · ${esc(venueName(venue))}` : ' · 전체 지점'} <span class="muted">(비교: ${esc(d.prev.from)} ~ ${esc(d.prev.to)})</span></p></div>
+      <div class="head"><div><h1>KPI 요약</h1><p>방문부터 문의, 예약, 매출까지 한눈에 봅니다. <span class="muted">${esc(d.from)} ~ ${esc(d.to)}${venue ? ` · ${esc(venueName(venue))}` : ' · 전체 지점'} · 비교: ${esc(d.prev.from)} ~ ${esc(d.prev.to)}</span></p></div>
         <div class="head-actions"><a class="btn" href="/api/admin/export?type=leads">소개서 요청 CSV</a><a class="btn" href="/api/admin/export?type=inquiries">문의 CSV</a></div></div>
+      ${K ? K.tabs('', d) : ''}
       <div class="periods">
         <div class="seg" style="margin:0">${[['month', '이번 달'], ['last', '지난 달'], ['q3', '최근 3개월'], ['year', '올해']].map(([k, l]) => `<button type="button" data-p="${k}" class="${which === k ? 'is-on' : ''}">${l}</button>`).join('')}</div>
         <input type="date" id="k-from" value="${esc(d.from)}" aria-label="시작일"> ~ <input type="date" id="k-to" value="${esc(d.to)}" aria-label="종료일">
         <select id="k-venue" aria-label="지점"><option value="">전체 지점</option>${venuesOpen().map((v) => `<option value="${esc(v.slug)}"${v.slug === venue ? ' selected' : ''}>${esc(v.name)}</option>`).join('')}</select>
       </div>
+      ${K && B ? `<h2 class="kpi-group">방문·행동 <a href="#/kpi/traffic?from=${d.from}&to=${d.to}">방문 분석 자세히</a></h2>
       <div class="kpis kpis-5">
-        <div class="kpi"><span>${venue ? '공간 페이지 조회' : '방문자'}</span><strong>${venue ? d.pageviews : d.visitors}</strong><em>${venue ? delta(d.pageviews, d.prev.pageviews) : delta(d.visitors, d.prev.visitors)}</em></div>
+        ${K.card('방문자', K.N(d.visitors), delta(d.visitors, d.prev.visitors))}
+        ${K.card('페이지뷰', K.N(B.cur.pageviews), delta(B.cur.pageviews, B.prev.pageviews))}
+        ${K.card('평균 머문 시간 <small>방문당</small>', K.dur(B.cur.avg_session_ms), K.delta(B.cur.avg_session_ms, B.prev.avg_session_ms))}
+        ${K.card('이탈률', K.pct(B.cur.bounce), K.delta(B.cur.bounce, B.prev.bounce, true))}
+        ${K.card('클릭', K.N(B.cur.clicks), delta(B.cur.clicks, B.prev.clicks))}
+      </div>
+      <h2 class="kpi-group">고객·영업 <a href="#/kpi/members?from=${d.from}&to=${d.to}">고객·회원 자세히</a></h2>` : ''}
+      <div class="kpis kpis-5">
+        ${venue ? `<div class="kpi"><span>공간 페이지 조회</span><strong>${d.pageviews}</strong><em>${delta(d.pageviews, d.prev.pageviews)}</em></div>`
+          : K && B ? K.card('새 고객', K.N(B.cur.new_customers), delta(B.cur.new_customers, B.prev.new_customers))
+          : `<div class="kpi"><span>방문자</span><strong>${d.visitors}</strong><em>${delta(d.visitors, d.prev.visitors)}</em></div>`}
         <div class="kpi"><span>소개서 요청</span><strong>${d.leads}</strong><em>${delta(d.leads, d.prev.leads)}</em></div>
         <div class="kpi"><span>대관 문의</span><strong>${d.inquiries}</strong><em>${delta(d.inquiries, d.prev.inquiries)}</em></div>
         <div class="kpi"><span>확정 매출</span><strong>${MZChart.won(d.revenue)}<small style="font-size:1rem;font-weight:600">원</small></strong><em>${delta(d.revenue, d.prev.revenue)}</em></div>
@@ -95,7 +109,7 @@
           <section class="card"><h2>월별 소개서 요청</h2><div id="k-lead"></div></section>
           <section class="card"><h2>월별 방문자</h2><div id="k-uv"></div></section>
           <section class="card"><h2>들어온 사이트</h2>${d.referrers.length ? `<ul class="rank">${d.referrers.map((x) => `<li><span>${esc(x.host)}</span><b>${x.n}</b><i style="width:${(x.n / maxRef) * 100}%"></i></li>`).join('')}</ul>` : '<p class="empty">다른 사이트에서 들어온 기록이 아직 없습니다.</p>'}</section>
-          <section class="card"><h2>많이 본 페이지</h2>${d.pages.length ? `<ul class="rank">${d.pages.map((x) => `<li><span>${esc(pageName(x.path))}</span><b>${x.n}</b><i style="width:${(x.n / maxPg) * 100}%"></i></li>`).join('')}</ul>` : '<p class="empty">아직 집계된 방문이 없습니다.</p>'}</section>
+          <section class="card"><h2>많이 본 페이지 <a class="small" href="#/kpi/pages?from=${d.from}&to=${d.to}" style="font-weight:600">페이지·클릭 자세히</a></h2>${d.pages.length ? `<ul class="rank">${d.pages.map((x) => `<li><span>${esc(pageName(x.path))}</span><b>${x.n}</b><i style="width:${(x.n / maxPg) * 100}%"></i></li>`).join('')}</ul>` : '<p class="empty">아직 집계된 방문이 없습니다.</p>'}</section>
         </div>
       </div>`;
 

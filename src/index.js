@@ -4,7 +4,7 @@ import { ensureBrochure } from './files.js';
 import { serveCalendar } from './ics.js';
 import { handlePublicApi, serveMedia, serveVideoPoster, serveBrochure } from './api-public.js';
 import { handleHostApi } from './api-host.js';
-import { trackable, trackView } from './track.js';
+import { trackable, trackView, handleBeacon, pruneVisits } from './track.js';
 import { brochurePage, brochureErrorPage, hostPage } from './render/growth.js';
 import { handleAdminApi } from './api-admin.js';
 import { html } from './render/layout.js';
@@ -15,6 +15,8 @@ let lastPending = 0;
 export default {
   async scheduled(event, env, ctx) {
     ctx.waitUntil(processPendingMedia(env, 12).catch((e) => console.error(e)));
+    // 400일이 지난 방문(세션) 기록은 지웁니다
+    if (new Date(event.scheduledTime || Date.now()).getUTCMinutes() < 15) ctx.waitUntil(pruneVisits(env).catch(() => {}));
     // 지점 소개서 PDF를 미리 받아 둡니다(없거나 드라이브 링크가 바뀐 경우만)
     ctx.waitUntil(
       (async () => {
@@ -32,6 +34,11 @@ export default {
       if (p.startsWith('/assets/brochure/')) return new Response('Not found', { status: 404, headers: { 'cache-control': 'no-store' } });
       if (p.startsWith('/api/admin')) return await handleAdminApi(request, env, ctx, url);
       if (p.startsWith('/api/host')) return await handleHostApi(request, env, ctx, url);
+      // 방문 분석 기록(브라우저 → sendBeacon)
+      if (p === '/api/t') {
+        await ensureSchema(env);
+        return await handleBeacon(request, env);
+      }
       // 운영 점검용: 사진·소개서 준비 상태(개인 정보 없음)
       if (p === '/api/status') {
         await ensureSchema(env);

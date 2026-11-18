@@ -3,6 +3,7 @@ import { json, fail, readJson, clip, nowIso, kstDate, parseJson, toInt, csv, ran
 import { createInquiry, siteBrochureResponse } from './api-public.js';
 import { notify } from './notify.js';
 import { brochureKey, fileInfo, storeFile, deleteFile, ensureBrochure, fileResponse, driveFileId } from './files.js';
+import { handleKpi, kpiBehavior } from './api-kpi.js';
 import { isMonth, monthRange, thisMonth, addMonths, daysBetween, bookingsOverlapping, venueSummary, monthlyTrend } from './metrics.js';
 import { LEAD_STATUS, PARTNER_STATUS, HOST_STATUS, SETTLE_STATUS, INQUIRY_STATUS, SITE_BROCHURE } from './seed.js';
 
@@ -328,6 +329,10 @@ export async function handleAdminMore({ request, env, ctx, url, p, method, actor
   }
 
   // ── KPI ────────────────────────────────────────────────────
+  if (p.startsWith('/kpi/') && method === 'GET') {
+    const r = await handleKpi({ env, url, p, content });
+    if (r) return r;
+  }
   if (p === '/kpi' && method === 'GET') {
     const q = url.searchParams;
     let to = isDate(q.get('to')) ? q.get('to') : today;
@@ -339,8 +344,8 @@ export async function handleAdminMore({ request, env, ctx, url, p, method, actor
     const prevTo = new Date(Date.parse(from) - 86400000).toISOString().slice(0, 10);
     const prevFrom = new Date(Date.parse(prevTo) - (span - 1) * 86400000).toISOString().slice(0, 10);
     const [cur, prev] = await Promise.all([kpiCounts(env, content, from, to, venue), kpiCounts(env, content, prevFrom, prevTo, venue)]);
-    const detail = await kpiDetail(env, content, from, to, venue);
-    return json({ ok: true, from, to, prev: { from: prevFrom, to: prevTo, ...prev }, venue, ...cur, ...detail });
+    const [detail, behavior] = await Promise.all([kpiDetail(env, content, from, to, venue), kpiBehavior(env, from, to, prevFrom, prevTo)]);
+    return json({ ok: true, from, to, prev: { from: prevFrom, to: prevTo, ...prev }, venue, ...cur, ...detail, behavior });
   }
 
   // ── 내보내기(추가 항목) ─────────────────────────────────────

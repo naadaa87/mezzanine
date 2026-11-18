@@ -119,6 +119,7 @@ ${bar ? `<nav class="mbar" aria-label="빠른 문의">
   <a class="mbar-main" href="/inquiry">견적 요청</a>
   ${ch.kakao ? `<a class="mbar-sub" href="${esc(ch.kakao)}" target="_blank" rel="noopener">카카오톡</a>` : `<a class="mbar-sub" href="/my">내 문의 조회</a>`}
 </nav>` : ''}
+<script src="/assets/js/track.js?v=7" defer></script>
 <script src="/assets/js/site.js?v=7" defer></script>
 ${scripts.map((src) => `<script src="${src}?v=7" defer></script>`).join('\n')}
 </body>

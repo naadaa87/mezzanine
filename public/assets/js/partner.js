@@ -28,6 +28,7 @@
       const res = await fetch('/api/partners', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) });
       const j = await res.json();
       if (!j.ok) throw new Error(j.error || '접수하지 못했습니다.');
+      window.mzTrack?.('conv:partner');
       form.hidden = true;
       const done = document.getElementById('pt-done');
       document.getElementById('pt-code').textContent = j.code;

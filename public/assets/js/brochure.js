@@ -58,6 +58,7 @@
       const res = await fetch('/api/brochure', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) });
       const j = await res.json();
       if (!j.ok) throw new Error(j.error || '요청을 처리하지 못했습니다.');
+      window.mzTrack?.('conv:brochure');
       save({ code: j.code, token: j.token });
       filesBox.innerHTML = fileButtons(j.files);
       const inq = document.getElementById('bro-inquiry');

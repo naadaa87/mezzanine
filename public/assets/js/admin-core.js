@@ -142,7 +142,8 @@ window.MZ = (() => {
 
   // ── 화면 틀 ─────────────────────────────────────────────────
   const NAV = [
-    ['', '대시보드'], ['kpi', 'KPI·성과'],
+    ['', '대시보드'],
+    [null, 'KPI'], ['kpi', 'KPI 요약'], ['kpi/traffic', '방문 분석'], ['kpi/pages', '페이지·클릭'], ['kpi/content', '인기 정보'], ['kpi/members', '고객·회원'],
     [null, '대관 고객'], ['inquiries', '문의 관리'], ['leads', '소개서 요청'], ['quotes', '견적 관리'], ['bookings', '예약·일정'], ['customers', '고객 관리'],
     [null, '공간 파트너'], ['partners', '입점 문의'], ['hosts', '호스트'], ['settlements', '정산'],
     [null, '사이트 콘텐츠'], ['venues', '지점 정보'], ['photos', '사진'], ['files', '공간소개서'], ['cases', '대관 사례'], ['faqs', 'FAQ·이용 안내'], ['rates', '요금표'],
@@ -170,7 +171,10 @@ window.MZ = (() => {
   }
 
   function drawNav() {
-    const cur = (location.hash.replace(/^#\/?/, '').split('?')[0].split('/')[0] || '');
+    // 지금 화면과 가장 길게 맞는 메뉴 하나만 표시합니다(예: kpi/traffic이면 'KPI 요약'이 아니라 '방문 분석')
+    const path = location.hash.replace(/^#\/?/, '').split('?')[0];
+    const keys = NAV.map(([k]) => k).filter((k) => k !== null);
+    const cur = keys.filter((k) => k && (path === k || path.startsWith(`${k}/`))).sort((a, b) => b.length - a.length)[0] || (path ? path.split('/')[0] : '');
     const nav = document.getElementById('side-nav');
     if (!nav) return;
     nav.innerHTML = NAV.map(([key, label]) =>

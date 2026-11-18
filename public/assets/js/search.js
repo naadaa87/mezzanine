@@ -27,6 +27,7 @@
   };
 
   form.addEventListener('submit', async (e) => {
+    window.mzTrack?.(`search|${form.venue.value || 'all'}|${form.type.value || '-'}|${form.headcount.value || '-'}`, form.date.value ? form.date.value.slice(0, 7) : '');
     const date = form.date.value;
     if (!date) return; // 날짜가 없으면 견적 요청 화면으로
     e.preventDefault();

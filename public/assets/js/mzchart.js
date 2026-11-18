@@ -50,7 +50,7 @@ window.MZChart = (() => {
       const ticks = [0, max / 2, max];
       const maxI = vals.indexOf(Math.max(...vals));
       const lastI = rows.length - 1;
-      const every = band < 34 ? 2 : 1;
+      const every = opt.every || (band < 34 ? (band < 15 ? 4 : 2) : 1);
       let svg = `<svg viewBox="0 0 ${W} ${H}" width="${W}" height="${H}" role="img" aria-label="${esc(opt.name || '그래프')}">`;
       for (const t of ticks) {
         svg += `<line x1="${padL}" x2="${W - padR}" y1="${y(t)}" y2="${y(t)}" stroke="${GRID}" stroke-width="1"/>`;

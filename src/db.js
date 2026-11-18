@@ -2,7 +2,7 @@ import { DEFAULTS, SEED_MEDIA, SEED_MEDIA_V2, SEED_MEDIA_V3, SEED_MEDIA_VERSION 
 import { fetchDriveImage, imageSize } from './drive.js';
 import { parseJson, nowIso } from './util.js';
 
-const SCHEMA_VERSION = 4;
+const SCHEMA_VERSION = 5;
 
 const SCHEMA = [
   `CREATE TABLE IF NOT EXISTS meta (k TEXT PRIMARY KEY, v TEXT)`,
@@ -94,6 +94,17 @@ const SCHEMA = [
   `CREATE TABLE IF NOT EXISTS page_views (day TEXT NOT NULL, path TEXT NOT NULL, n INTEGER DEFAULT 0, PRIMARY KEY(day, path))`,
   `CREATE TABLE IF NOT EXISTS visitors (day TEXT NOT NULL, h TEXT NOT NULL, PRIMARY KEY(day, h))`,
   `CREATE TABLE IF NOT EXISTS referrers (day TEXT NOT NULL, host TEXT NOT NULL, n INTEGER DEFAULT 0, PRIMARY KEY(day, host))`,
+  // v5: 방문 분석(세션·머문 시간·클릭·페이지별 방문자·시간대)
+  `CREATE TABLE IF NOT EXISTS page_uv (day TEXT NOT NULL, path TEXT NOT NULL, h TEXT NOT NULL, PRIMARY KEY(day, path, h))`,
+  `CREATE TABLE IF NOT EXISTS visit_hours (day TEXT NOT NULL, hour INTEGER NOT NULL, n INTEGER DEFAULT 0, PRIMARY KEY(day, hour))`,
+  `CREATE TABLE IF NOT EXISTS visit_sessions (
+     sid TEXT PRIMARY KEY, day TEXT NOT NULL, started_at TEXT, last_at TEXT, landing TEXT, exit_path TEXT,
+     pages INTEGER DEFAULT 0, ms INTEGER DEFAULT 0, clicks INTEGER DEFAULT 0, dev TEXT DEFAULT '', ref TEXT DEFAULT '',
+     utm_source TEXT DEFAULT '', utm_medium TEXT DEFAULT '', utm_campaign TEXT DEFAULT '',
+     conv_inquiry INTEGER DEFAULT 0, conv_brochure INTEGER DEFAULT 0, conv_partner INTEGER DEFAULT 0, conv_search INTEGER DEFAULT 0)`,
+  `CREATE INDEX IF NOT EXISTS idx_visit_sessions_day ON visit_sessions(day)`,
+  `CREATE TABLE IF NOT EXISTS page_time (day TEXT NOT NULL, path TEXT NOT NULL, loads INTEGER DEFAULT 0, ms INTEGER DEFAULT 0, depth INTEGER DEFAULT 0, PRIMARY KEY(day, path))`,
+  `CREATE TABLE IF NOT EXISTS clicks (day TEXT NOT NULL, path TEXT NOT NULL, k TEXT NOT NULL, label TEXT DEFAULT '', n INTEGER DEFAULT 0, PRIMARY KEY(day, path, k))`,
 ];
 
 let ready = null;
@@ -119,6 +130,10 @@ export function ensureSchema(env) {
         } catch {}
       }
       await env.DB.prepare(`UPDATE media SET fetch_state=1 WHERE size>0`).run();
+      // v5: 방문자 기기 종류
+      try {
+        await env.DB.prepare(`ALTER TABLE visitors ADD COLUMN dev TEXT DEFAULT ''`).run();
+      } catch {}
       await env.DB.prepare(`INSERT INTO meta(k,v) VALUES('schema',?) ON CONFLICT(k) DO UPDATE SET v=excluded.v`)
         .bind(String(SCHEMA_VERSION))
         .run();

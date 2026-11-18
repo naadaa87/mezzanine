@@ -266,3 +266,21 @@ table.tbl { width: 100%; border-collapse: collapse; font-size: .92rem; }
 .filecard.site-bro { grid-template-columns: auto minmax(0, 1fr) auto; border-color: #b9d3c7; }
 @media (max-width: 1100px) { .kpis-5 { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 @media (max-width: 700px) { .filecard, .filecard.site-bro { grid-template-columns: 1fr; } .mzf-row { grid-template-columns: 6em minmax(0, 1fr) 3.6em; } }
+
+/* KPI 탭·묶음 */
+.kpi-tabs { display: flex; flex-wrap: wrap; gap: 4px; margin: -6px 0 16px; border-bottom: 1px solid var(--line); }
+.kpi-tabs a { padding: 9px 14px 10px; font-weight: 600; font-size: .92rem; color: var(--sub); border-bottom: 2px solid transparent; margin-bottom: -1px; }
+.kpi-tabs a:hover { color: var(--ink); }
+.kpi-tabs a.is-on { color: var(--point); border-bottom-color: var(--point); }
+.kpi-group { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; font-size: .95rem; font-weight: 800; margin: 4px 0 10px; }
+.kpi-group a, .card > h2 a.small { font-size: .82rem; font-weight: 600; color: var(--point); }
+.kpi-note { margin: 4px 0 10px; line-height: 1.7; }
+.bar-in { height: 3px; background: #eef0ef; margin-top: 6px; max-width: 220px; }
+.bar-in i { display: block; height: 3px; background: #1d7a56; }
+.kpi-pages td { vertical-align: top; }
+.mini-cols { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px 18px; }
+.mini-cols h3, .sub-h { font-size: .82rem; color: var(--sub); font-weight: 700; margin: 6px 0 2px; }
+.sub-h { margin-top: 18px; }
+.card > h2 .head-actions { margin-left: auto; }
+code { font-size: .82em; background: #f2f4f3; padding: 1px 5px; border-radius: 4px; }
+@media (max-width: 700px) { .mini-cols { grid-template-columns: 1fr; } }

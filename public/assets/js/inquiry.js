@@ -177,6 +177,7 @@
       const res = await fetch('/api/inquiries', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) });
       const j = await res.json();
       if (!j.ok) throw new Error(j.error || '문의를 접수하지 못했습니다.');
+      window.mzTrack?.('conv:inquiry');
       const link = `${location.origin}/my?code=${encodeURIComponent(j.code)}&t=${encodeURIComponent(j.token)}`;
       form.hidden = true;
       const done = document.getElementById('inq-done');
