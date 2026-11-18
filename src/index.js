@@ -75,7 +75,7 @@ export default {
       if (p === '/host') return html(hostPage(content, origin));
 
       if (p === '/') return html(homePage(content, origin));
-      if (p === '/venues') return html(venuesPage(content, origin));
+      if (p === '/venues') return html(venuesPage(content, origin, url.searchParams.get('type') || ''));
       const vm = p.match(/^\/venues\/([a-z0-9-]+)$/);
       if (vm) {
         const v = content.venues.find((x) => x.slug === vm[1]);

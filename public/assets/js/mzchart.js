@@ -3,7 +3,7 @@
 // - 마우스·키보드로 막대를 고르면 값이 뜨고, 아래 '표로 보기'에 같은 값이 있습니다
 window.MZChart = (() => {
   'use strict';
-  const COLOR = '#3567a0';
+  const COLOR = '#1d7a56';
   const GRID = '#ecece8';
   const AXIS = '#8a8d8f';
   const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));

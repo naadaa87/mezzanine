@@ -73,6 +73,16 @@
     de.min = ds.value || todayStr;
     if (!de.value || de.value < ds.value) de.value = ds.value;
   });
+  // 홈 '공간 찾기'에서 넘어온 날짜·인원
+  const preDate = params.get('date');
+  if (preDate && /^\d{4}-\d{2}-\d{2}$/.test(preDate) && preDate >= todayStr) {
+    ds.value = preDate;
+    de.value = preDate;
+    de.min = preDate;
+  }
+  const preCount = parseInt(params.get('headcount') || '', 10);
+  const hc = document.getElementById('headcount');
+  if (hc && preCount > 0) hc.value = String(preCount);
 
   // 고른 날짜의 예약 현황을 바로 알려 줍니다
   const availBox = document.getElementById('avail');
@@ -104,6 +114,7 @@
   ds.addEventListener('change', checkAvail);
   de.addEventListener('change', checkAvail);
   form.querySelectorAll('input[name="venue"]').forEach((r) => r.addEventListener('change', checkAvail));
+  if (ds.value) checkAvail();
 
   // 전화번호 자동 하이픈
   const phone = document.getElementById('phone');

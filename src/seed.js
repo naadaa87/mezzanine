@@ -113,6 +113,7 @@ export const DEFAULTS = {
       map: { naver: 'https://naver.me/FgESezMd', kakao: '' },
       brochure: 'https://drive.google.com/file/d/1s7jILRl_M00hQq49xfPsi22WchXNv5M1/view',
       brochure_label: '삼성 지점 베뉴 소개서 (26.4Q, 8쪽)',
+      hero_image: '/assets/venue/samsung/a2f.jpg',
       map_image: '/assets/venue/samsung/map.jpg',
       guide: {
         summary: '중정을 가운데 두고 세 동이 이어진 공간입니다. 실내와 테라스, 2층을 잇는 동선이 있어 구역을 나눠 쓰거나 하나로 묶어 쓸 수 있습니다.',
@@ -190,6 +191,7 @@ export const DEFAULTS = {
       map: { naver: 'https://naver.me/FMcN6M5m', kakao: '' },
       brochure: 'https://drive.google.com/file/d/1ybjDrcr3eKSA06TZHOu2EQWPJMvTxFsd/view',
       brochure_label: '북가좌 지점 베뉴 소개서 (26.4Q, 8쪽)',
+      hero_image: '/assets/venue/bukgajwa/front.jpg',
       map_image: '/assets/venue/bukgajwa/map.jpg',
       guide: {
         summary: '중정을 두고 세 동이 모여 있고, 실내와 테라스, 2층을 잇는 동선으로 연결됩니다. 지하 공연장부터 사방이 유리인 2층까지 층마다 성격이 다릅니다.',

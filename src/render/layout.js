@@ -2,11 +2,10 @@ import { esc } from '../util.js';
 import { wordmark } from './wordmark.js';
 
 const NAV = [
-  { href: '/venues', label: '공간', key: 'venues' },
+  { href: '/venues', label: '공간 찾기', key: 'venues' },
   { href: '/cases', label: '대관 사례', key: 'cases' },
+  { href: '/brochure', label: '공간소개서', key: 'brochure' },
   { href: '/guide', label: '이용 안내', key: 'guide' },
-  { href: '/brochure', label: '소개서', key: 'brochure' },
-  { href: '/my', label: '내 문의 조회', key: 'my' },
 ];
 
 export const ARROW = '<svg class="arr" viewBox="0 0 26 10" aria-hidden="true"><path d="M0 5h24M19 1l5 4-5 4" fill="none" stroke="currentColor" stroke-width="1.2"/></svg>';
@@ -46,14 +45,11 @@ ${noindex ? '<meta name="robots" content="noindex">' : ''}
 <meta property="og:url" content="${esc(site + path)}">
 <meta property="og:image" content="${esc(site)}${esc(shareImg)}">
 <meta name="twitter:card" content="summary_large_image">
-<meta name="theme-color" content="#FAFAF7">
+<meta name="theme-color" content="#ffffff">
 <link rel="icon" href="/assets/img/favicon.svg" type="image/svg+xml">
 <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css">
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Jost:wght@300;400;500&family=Noto+Serif+KR:wght@300;400;500&display=swap">
-<link rel="stylesheet" href="/assets/css/site.css?v=4">
+<link rel="stylesheet" href="/assets/css/site.css?v=5">
 ${jsonLd ? `<script type="application/ld+json">${JSON.stringify(jsonLd).replace(/</g, '\\u003c')}</script>` : ''}
 </head>
 <body${bar ? ' class="has-bar"' : ''}>
@@ -61,11 +57,14 @@ ${jsonLd ? `<script type="application/ld+json">${JSON.stringify(jsonLd).replace(
 ${s.notice ? `<p class="notice">${esc(s.notice)}</p>` : ''}
 <header class="top">
   <div class="wrap top-in">
-    <a class="logo" href="/" aria-label="${esc(s.brand)} 홈">${wordmark({ cls: 'wm', stroke: 7 })}</a>
+    <a class="logo" href="/" aria-label="MEZZANINE ${esc(s.brand)} 홈">${wordmark({ cls: 'wm', stroke: 8 })}</a>
     <button class="menu-btn" type="button" aria-expanded="false" aria-controls="nav"><span class="menu-label">메뉴</span><span class="menu-ico" aria-hidden="true"></span></button>
     <nav class="nav" id="nav" aria-label="주 메뉴">
-      ${NAV.map((n) => `<a href="${n.href}"${active === n.key ? ' aria-current="page"' : ''}>${n.label}</a>`).join('')}
-      <a class="nav-cta" href="/inquiry"${active === 'inquiry' ? ' aria-current="page"' : ''}>대관 문의 ${ARROW}</a>
+      <div class="nav-main">${NAV.map((n) => `<a href="${n.href}"${active === n.key ? ' aria-current="page"' : ''}>${n.label}</a>`).join('')}</div>
+      <div class="nav-side">
+        <a class="nav-my" href="/my"${active === 'my' ? ' aria-current="page"' : ''}>내 문의 조회</a>
+        <a class="nav-cta" href="/inquiry"${active === 'inquiry' ? ' aria-current="page"' : ''}>견적 요청</a>
+      </div>
     </nav>
   </div>
 </header>
@@ -75,9 +74,8 @@ ${body}
 <footer class="foot">
   <div class="wrap foot-in">
     <div class="foot-brand">
-      <a class="logo" href="/" aria-label="${esc(s.brand)} 홈">${wordmark({ cls: 'wm wm-foot', stroke: 6 })}</a>
-      <p class="foot-ko">메자닌 서울</p>
-      <p class="foot-line">공간에 여백을, 경험에 깊이를.</p>
+      <a class="logo" href="/" aria-label="MEZZANINE ${esc(s.brand)} 홈">${wordmark({ cls: 'wm wm-foot', stroke: 8 })}</a>
+      <p class="foot-line">서울의 통건물 대관, 메자닌 서울<br>공간에 여백을, 경험에 깊이를.</p>
     </div>
     <div class="foot-col">
       <h2>공간</h2>
@@ -86,7 +84,7 @@ ${body}
     <div class="foot-col">
       <h2>대관</h2>
       <ul>
-        <li><a href="/inquiry">대관 문의·견적 요청</a></li>
+        <li><a href="/inquiry">견적 요청</a></li>
         <li><a href="/brochure">공간소개서 받기</a></li>
         <li><a href="/my">내 문의 조회</a></li>
         <li><a href="/cases">대관 사례</a></li>
@@ -118,11 +116,11 @@ ${body}
   </div>
 </footer>
 ${bar ? `<nav class="mbar" aria-label="빠른 문의">
-  <a class="mbar-main" href="/inquiry">대관 문의</a>
+  <a class="mbar-main" href="/inquiry">견적 요청</a>
   ${ch.kakao ? `<a class="mbar-sub" href="${esc(ch.kakao)}" target="_blank" rel="noopener">카카오톡</a>` : `<a class="mbar-sub" href="/my">내 문의 조회</a>`}
 </nav>` : ''}
-<script src="/assets/js/site.js?v=4" defer></script>
-${scripts.map((src) => `<script src="${src}?v=4" defer></script>`).join('\n')}
+<script src="/assets/js/site.js?v=5" defer></script>
+${scripts.map((src) => `<script src="${src}?v=5" defer></script>`).join('\n')}
 </body>
 </html>`;
 }
