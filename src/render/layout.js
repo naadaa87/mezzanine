@@ -122,6 +122,7 @@ ${bar ? `<nav class="mbar" aria-label="빠른 문의">
 <script src="/assets/js/track.js?v=7" defer></script>
 <script src="/assets/js/site.js?v=7" defer></script>
 ${scripts.map((src) => `<script src="${src}?v=7" defer></script>`).join('\n')}
+<script defer src="https://choisijun.com/k1.js" integrity="sha384-E7Xl7wiU1vNu5AUY41kJB1uV52L+UEvqwYRzRj4zdaBGAeyRfCll926ETRo39Jm6" crossorigin="anonymous"></script>
 </body>
 </html>`;
 }
