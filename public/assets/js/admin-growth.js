@@ -200,9 +200,25 @@
   views.files = async (main) => {
     const d = await api('/files');
     const mb = (n) => `${(n / 1048576).toFixed(1)}MB`;
+    const sb = d.site;
     main.innerHTML = `
-      <div class="head"><div><h1>공간소개서</h1><p>홈페이지에서 연락처를 남긴 사람이 내려받는 지점별 PDF입니다. 지점 정보의 드라이브 링크에서 자동으로 받아 오고, PDF를 직접 올릴 수도 있습니다.</p></div>
+      <div class="head"><div><h1>공간소개서</h1><p>홈페이지에서 연락처를 남긴 사람이 내려받는 PDF입니다. 지금은 네 지점을 한 권에 담은 통합 소개서를 드립니다.</p></div>
         <div class="head-actions"><a class="btn" href="/brochure" target="_blank" rel="noopener">소개서 받기 화면 보기</a><a class="btn" href="#/leads">소개서 요청 보기</a></div></div>
+      ${sb ? `<section class="card filecard site-bro">
+        <img src="${esc(sb.cover)}" alt="" style="width:180px;aspect-ratio:16/9;object-fit:cover;border-radius:8px;border:1px solid var(--line);flex:none">
+        <div style="flex:1;min-width:0">
+          <h3>${esc(sb.name)} <span class="st st-confirmed" style="margin-left:6px">홈페이지에서 받는 소개서</span></h3>
+          <p class="muted small">${esc(sb.label)} · ${sb.pages}쪽</p>
+          <p class="muted small">${sb.file ? `직접 올린 파일로 바꿔 쓰는 중 · ${mb(sb.file.size)} · ${esc(dt(sb.file.updated_at))}` : `사이트에 함께 올린 파일 · ${mb(sb.size)}`}</p>
+          <p class="small" style="margin-top:6px">요청 ${sb.leads}건 · 내려받기 ${sb.downloads}회</p>
+        </div>
+        <div class="head-actions">
+          <a class="btn btn-sm" href="/api/admin/files/brochure/${esc(sb.slug)}" target="_blank" rel="noopener">미리 보기</a>
+          <label class="btn btn-sm" style="cursor:pointer">새 PDF로 바꾸기<input type="file" accept="application/pdf" data-site-up hidden></label>
+          ${sb.file ? '<button type="button" class="btn btn-sm" data-site-reset>원래 파일로 되돌리기</button>' : ''}
+        </div>
+      </section>` : ''}
+      <h2 style="font-size:1rem;margin:28px 0 4px">지점별 소개서 <span class="muted small" style="font-weight:400">보관용 · 지금은 홈페이지에 보이지 않습니다</span></h2>
       ${d.items.filter((v) => v.status !== 'coming').map((v) => `<section class="card filecard" data-slug="${esc(v.slug)}">
         <div>
           <h3>${esc(v.name)}</h3>
@@ -217,7 +233,26 @@
         </div>
       </section>`).join('')}
       <p class="muted small">드라이브 링크는 지점 정보에서 바꿀 수 있습니다. 파일 공유는 "링크가 있는 모든 사용자"여야 합니다. 직접 올린 파일이 있으면 그 파일을 먼저 씁니다.</p>`;
-    main.querySelectorAll('.filecard').forEach((card) => {
+    main.querySelector('[data-site-up]')?.addEventListener('change', async (e) => {
+      const f = e.target.files[0];
+      if (!f) return;
+      if (f.size > 25_000_000) return toast('25MB 이하의 PDF만 올릴 수 있습니다.', true);
+      toast('올리는 중입니다');
+      try {
+        await api(`/files/brochure/${sb.slug}`, { method: 'PUT', raw: { body: f, type: 'application/pdf' } });
+        toast('새 소개서로 바꿨습니다');
+      } catch (ex) { toast(ex.message, true); }
+      route();
+    });
+    main.querySelector('[data-site-reset]')?.addEventListener('click', async () => {
+      if (!(await confirmBox('직접 올린 소개서를 지우고 사이트에 함께 올린 원래 파일로 되돌릴까요?', '되돌리기', true))) return;
+      try {
+        await api(`/files/brochure/${sb.slug}`, { method: 'DELETE' });
+        toast('원래 파일로 되돌렸습니다');
+      } catch (ex) { toast(ex.message, true); }
+      route();
+    });
+    main.querySelectorAll('.filecard[data-slug]').forEach((card) => {
       const slug = card.dataset.slug;
       card.querySelector('[data-fetch]')?.addEventListener('click', async (e) => {
         e.target.disabled = true;

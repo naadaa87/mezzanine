@@ -20,7 +20,7 @@ window.MZ = (() => {
   const day = (iso) => (iso ? dt(iso).slice(0, 10) : '');
   const period = (a, b) => (a ? (b && b !== a ? `${a} ~ ${b}` : a) : '미정');
   const venue = (slug) => (S.content?.venues || []).find((v) => v.slug === slug);
-  const venueName = (slug) => venue(slug)?.name?.replace('메자닌 ', '') || '미정';
+  const venueName = (slug) => (slug === 'all' ? '통합 소개서' : venue(slug)?.name?.replace('메자닌 ', '') || '미정');
   const venueColor = (slug) => venue(slug)?.color || '#7b818c';
   const venueDot = (slug) => `<i class="dotv" style="background:${esc(venueColor(slug))}"></i>${esc(venueName(slug))}`;
   const st = (key, label) => `<span class="st st-${esc(key)}">${esc(label)}</span>`;

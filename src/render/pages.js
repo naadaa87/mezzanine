@@ -1,8 +1,7 @@
 import { esc } from '../util.js';
 import { page, coverOf, venueBy, statusChip, ARROW, KIND_LABEL } from './layout.js';
 import { sectionSVG } from './diagram.js';
-import { EVENT_TYPES, OPTION_LIST, BUDGETS } from '../seed.js';
-import { brochureVenues } from '../api-public.js';
+import { EVENT_TYPES, OPTION_LIST, BUDGETS, SITE_BROCHURE } from '../seed.js';
 
 const PROCESS = [
   ['문의 접수', '지점과 일정, 행사 내용을 적어 문의를 남깁니다. 접수번호가 바로 발급됩니다.'],
@@ -37,7 +36,8 @@ const brandNote = (list) =>
     ? '<p class="gal-note">‘브랜드 이미지’ 표시가 있는 사진은 실제 공간 사진을 바탕으로 보정한 이미지로, 세부 모습이 지금과 다를 수 있습니다.</p>'
     : '';
 
-const hasBrochure = (content, v) => brochureVenues(content).some((x) => x.slug === v.slug);
+// 통합 소개서에 운영 중인 모든 지점이 들어 있습니다
+const hasBrochure = (content, v) => v.status === 'open';
 const asset = (v, name, sm = false) => `/assets/venue/${v.slug}/${name}${sm ? '.sm' : ''}.jpg`;
 
 // 소개서와 같은 구성의 층별 안내: 층을 고르면 큰 사진, 도면, 핵심 요소, 세부 사진이 나옵니다
@@ -46,7 +46,7 @@ function floorGuide(content, v) {
   if (!g || !(g.floors || []).length) return '';
   const fl = g.floors;
   return `<section class="sec sec-tone fg" aria-labelledby="h-fg"><div class="wrap">
-    <div class="sec-head sec-head-row"><h2 id="h-fg">층별 안내</h2>${hasBrochure(content, v) ? `<a class="arrow-link" href="/brochure?venue=${esc(v.slug)}">소개서(PDF)로 받기 ${ARROW}</a>` : ''}</div>
+    <div class="sec-head sec-head-row"><h2 id="h-fg">층별 안내</h2>${hasBrochure(content, v) ? `<a class="arrow-link" href="/brochure">소개서(PDF)로 받기 ${ARROW}</a>` : ''}</div>
     ${g.summary ? `<p class="fg-sum">${esc(g.summary)}</p>` : ''}
     <div class="fg-box" data-tabs>
       <div class="tabs fg-tabs" role="tablist" aria-label="층 선택">
@@ -157,7 +157,7 @@ function venueCard(content, v, { dim = false } = {}) {
       <p class="vc-line">${esc(v.headline)}</p>
       <p class="vc-chips">${statChips(v).map((x) => `<span>${esc(x)}</span>`).join('')}</p>
       <div class="vc-btns"><a class="btn btn-line btn-sm" href="/venues/${esc(v.slug)}">공간 보기</a><a class="btn btn-soft btn-sm" href="/inquiry?venue=${esc(v.slug)}">견적 요청</a></div>
-      <p class="vc-sub">${hasBrochure(content, v) ? `<a href="/brochure?venue=${esc(v.slug)}">공간소개서 받기</a>` : '<span class="muted">소개서 준비 중</span>'}</p>
+      <p class="vc-sub">${hasBrochure(content, v) ? `<a href="/brochure">공간소개서 받기</a>` : '<span class="muted">소개서 준비 중</span>'}</p>
     </div>
   </article>`;
 }
@@ -284,17 +284,15 @@ export function homePage(content, origin) {
     </div>
   </section>` : '';
 
-  const decks = brochureVenues(content);
-  const deckCover = decks.find((v) => ['samsung', 'bukgajwa'].includes(v.slug));
   const hostCover = openVenues.map((v) => coverOf(content, 'venue', v.slug, '')).filter(Boolean)[1];
   const ctas = `<section class="sec" aria-label="공간소개서와 공간 파트너">
     <div class="wrap ccards">
-      ${decks.length ? `<div class="ccard is-green">
+      <div class="ccard is-green">
         <h2>공간소개서 받기</h2>
-        <p>층별 도면, 실제 사진, 오시는 길을 담은 지점별 PDF입니다. 연락처를 남기시면 바로 내려받을 수 있습니다.</p>
-        ${deckCover ? `<span class="ccard-fig"><img src="/assets/venue/${esc(deckCover.slug)}/deck-cover.jpg" alt="${esc(deckCover.name)} 소개서 표지" loading="lazy" decoding="async"></span>` : ''}
+        <p>삼성·북가좌·한남·응암 네 지점을 한 권에 담았습니다. 층별 사진과 도면, 대관 사례, 오시는 길까지 확인하실 수 있고, 연락처를 남기시면 바로 내려받을 수 있습니다.</p>
+        <span class="ccard-fig"><img src="${esc(SITE_BROCHURE.cover)}" alt="${esc(SITE_BROCHURE.name)} 표지" loading="lazy" decoding="async"></span>
         <a class="btn btn-dark" href="/brochure">소개서 받기</a>
-      </div>` : ''}
+      </div>
       <div class="ccard">
         <h2>건물주이신가요?</h2>
         <p>비어 있는 통건물을 메자닌 대관 공간으로 운영합니다. 공간 기획부터 대관 영업, 정산까지 메자닌이 맡고, 호스트센터에서 예약과 매출을 그대로 보여 드립니다.</p>
@@ -383,7 +381,7 @@ export function venuePage(content, origin, v) {
     ${v.stats.length ? `<dl class="spec">${v.stats.map((x) => `<div><dt>${esc(x.label)}</dt><dd>${esc(x.value)}</dd></div>`).join('')}</dl>` : ''}
     <div class="vhead-cta">
       <a class="btn btn-dark btn-lg" href="/inquiry?venue=${esc(v.slug)}">${coming ? '오픈 알림 신청' : '이 공간 대관 문의'}</a>
-      ${hasBrochure(content, v) ? `<a class="btn btn-line btn-lg" href="/brochure?venue=${esc(v.slug)}">공간소개서 받기 (PDF)</a>` : ''}
+      ${hasBrochure(content, v) ? `<a class="btn btn-line btn-lg" href="/brochure">공간소개서 받기 (PDF)</a>` : ''}
       ${v.map?.naver ? `<a class="btn btn-line btn-lg" href="${esc(v.map.naver)}" target="_blank" rel="noopener">네이버 지도</a>` : ''}
     </div>
   </div></section>`;

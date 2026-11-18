@@ -10,7 +10,7 @@
   const KEY = 'mz_brochure';
   const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
   const icon = '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 2v8M4.5 6.8 8 10.3l3.5-3.5M3 13.5h10" fill="none" stroke="currentColor" stroke-width="1.3"/></svg>';
-  const fileButtons = (files) => files.map((f) => `<a class="dl" href="${esc(f.url)}" download="${esc(`메자닌_${f.name.replace('메자닌 ', '')}_공간소개서.pdf`)}"><span><b>${esc(f.name)} 소개서</b><small>${esc(f.label)}</small></span>${icon}</a>`).join('');
+  const fileButtons = (files) => files.map((f) => `<a class="dl" href="${esc(f.url)}" download="${esc(f.filename || `메자닌_${f.name.replace('메자닌 ', '')}_공간소개서.pdf`)}"><span><b>${esc(f.title || `${f.name} 소개서`)}</b><small>${esc(f.label)}</small></span>${icon}</a>`).join('');
 
   const save = (v) => { try { localStorage.setItem(KEY, JSON.stringify(v)); } catch {} };
   const load = () => { try { return JSON.parse(localStorage.getItem(KEY) || 'null'); } catch { return null; } };
@@ -41,7 +41,6 @@
     errorBox.hidden = true;
     const fd = new FormData(form);
     const venues = fd.getAll('venues');
-    if (!venues.length) return fail('받으실 지점 소개서를 하나 이상 골라 주세요.', document.querySelector('.deck input'));
     if (!String(fd.get('name') || '').trim()) return fail('이름을 적어 주세요.', form.name);
     if (String(fd.get('phone') || '').replace(/\D/g, '').length < 9) return fail('연락처를 확인해 주세요.', form.phone);
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(fd.get('email') || '').trim())) return fail('이메일 주소를 확인해 주세요.', form.email);
@@ -62,7 +61,7 @@
       save({ code: j.code, token: j.token });
       filesBox.innerHTML = fileButtons(j.files);
       const inq = document.getElementById('bro-inquiry');
-      if (venues.length === 1) inq.href = `/inquiry?venue=${encodeURIComponent(venues[0])}`;
+      if (venues.length === 1 && venues[0] !== 'all') inq.href = `/inquiry?venue=${encodeURIComponent(venues[0])}`;
       form.hidden = true;
       document.getElementById('bro-prev').hidden = true;
       done.hidden = false;

@@ -229,7 +229,7 @@ button { cursor: pointer; }
 .ccard.is-green { background: var(--green-tint); border-color: var(--green-line); }
 .ccard h2 { font-size: 1.5rem; font-weight: 800; letter-spacing: -.035em; }
 .ccard p { color: var(--ink-2); font-size: .96rem; }
-.ccard-fig { display: block; aspect-ratio: 16 / 7; border-radius: var(--r-sm); overflow: hidden; background: #fff; }
+.ccard-fig { display: block; aspect-ratio: 16 / 9; border-radius: var(--r-sm); overflow: hidden; background: #fff; }
 .ccard-fig img { width: 100%; height: 100%; object-fit: cover; }
 .ccard .btn { align-self: flex-start; margin-top: 4px; }
 
@@ -624,6 +624,14 @@ input:focus, select:focus, textarea:focus { outline: 0; border-color: var(--gree
 .deck-body small { color: var(--sub); font-size: .82rem; }
 .deck-list { display: block; margin-top: 10px; border-top: 1px solid var(--line-2); }
 .deck-list span { display: block; font-size: .85rem; color: var(--ink-2); padding: 5px 0; border-bottom: 1px solid var(--line-2); }
+.deck.is-one { cursor: default; grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr); border-color: var(--green-line); background: #fff; }
+.deck.is-one:hover { border-color: var(--green-line); }
+.deck.is-one .deck-fig img { aspect-ratio: 16 / 9; }
+.bro-pages-label { margin-top: 22px; }
+.bro-pages { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+.bro-pages figure { margin: 0; }
+.bro-pages img { width: 100%; aspect-ratio: 16 / 9; object-fit: cover; border-radius: 10px; border: 1px solid var(--line); }
+.bro-pages figcaption { margin-top: 6px; font-size: .8rem; color: var(--sub); }
 .bro-miss { margin-top: 16px; font-size: .9rem; color: var(--sub); }
 .bro-miss a { color: var(--green); font-weight: 600; border-bottom: 1px solid currentColor; }
 .bro-prev { margin-top: 24px; }
@@ -748,7 +756,8 @@ input:focus, select:focus, textarea:focus { outline: 0; border-color: var(--gree
   .vhead { padding: 28px 0 22px; }
   .types { grid-template-columns: repeat(3, 80%); }
   .fg-pane { padding: 12px; }
-  .deck { grid-template-columns: 1fr; gap: 12px; }
+  .deck, .deck.is-one { grid-template-columns: 1fr; gap: 12px; }
+  .bro-pages { grid-template-columns: repeat(3, 70%); overflow-x: auto; }
   .roles { grid-template-columns: 1fr; }
   .steps-6 { grid-template-columns: 1fr; }
   .deck-band-covers { gap: 10px; }

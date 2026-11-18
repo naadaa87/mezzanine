@@ -1,57 +1,38 @@
 // 공간소개서 받기, 공간 파트너(호스트) 안내 페이지
 import { esc } from '../util.js';
 import { page, coverOf, ARROW } from './layout.js';
-import { EVENT_TYPES, PARTNER_MODELS } from '../seed.js';
-import { brochureVenues } from '../api-public.js';
+import { EVENT_TYPES, PARTNER_MODELS, SITE_BROCHURE } from '../seed.js';
 
-const short = (v) => v.name.replace('메자닌 ', '');
-
-const deckCover = (content, v) => {
-  if (v.brochure_cover) return v.brochure_cover;
-  if (['samsung', 'bukgajwa'].includes(v.slug)) return `/assets/venue/${v.slug}/deck-cover.jpg`;
-  return coverOf(content, 'venue', v.slug, '')?.sm || '';
-};
-
-const deckContents = (v) => {
-  const floors = (v.guide?.floors || []).map((f) => `${f.bldg} ${f.floor}`);
-  return [
-    '공간 개요와 건물 구성',
-    floors.length ? `층별 도면과 사진 (${floors.join(', ')})` : '층별 구성과 사진',
-    '오시는 길과 가까운 역',
-  ];
-};
+const mb = (n) => `${(n / 1048576).toFixed(1)}MB`;
 
 // ── 공간소개서 받기 ───────────────────────────────────────────
-export function brochurePage(content, origin, preselect = '') {
-  const avail = brochureVenues(content);
-  const missing = content.venues.filter((v) => v.status === 'open' && !avail.includes(v));
-  const pre = avail.some((v) => v.slug === preselect) ? [preselect] : avail.length === 1 ? [avail[0].slug] : [];
+export function brochurePage(content, origin) {
+  const B = SITE_BROCHURE;
   const body = `<section class="phead"><div class="wrap">
-      <p class="en" lang="en">VENUE GUIDE</p>
+      <p class="en" lang="en">SPACE GUIDE 2026</p>
       <h1>공간소개서 받기</h1>
-      <p>지점별 소개서에 건물과 층별 구성, 도면, 실제 공간 사진, 오시는 길을 담았습니다. 연락처를 남기시면 바로 내려받을 수 있습니다.</p>
+      <p>삼성·북가좌·한남·응암 네 지점을 한 권에 담았습니다. 지점별 층별 사진과 도면, 대관 사례, 진행 순서, 오시는 길까지 확인하실 수 있습니다. 연락처를 남기시면 바로 내려받을 수 있습니다.</p>
     </div></section>
     <section class="sec sec-tight"><div class="wrap bro">
       <div class="bro-decks">
-        <p class="label" id="deck-label">받으실 소개서 <small>여러 개 고를 수 있습니다</small></p>
-        <div class="decks" role="group" aria-labelledby="deck-label">
-        ${avail.map((v) => `<label class="deck">
-            <input type="checkbox" name="venues" value="${esc(v.slug)}" form="bro"${pre.includes(v.slug) ? ' checked' : ''}>
-            <span class="deck-fig">${deckCover(content, v) ? `<img src="${esc(deckCover(content, v))}" alt="" loading="lazy" decoding="async" width="720" height="405">` : ''}<span class="deck-check" aria-hidden="true"></span></span>
-            <span class="deck-body">
-              <span class="en" lang="en">${esc((v.name_en || '').toUpperCase())} · VENUE GUIDE</span>
-              <b>${esc(v.name)} 소개서</b>
-              <small>${esc(v.brochure_label || 'PDF')}</small>
-              <span class="deck-list">${deckContents(v).map((t) => `<span>${esc(t)}</span>`).join('')}</span>
-            </span>
-          </label>`).join('')}
+        <p class="label">받으실 소개서</p>
+        <div class="deck is-one">
+          <span class="deck-fig"><img src="${esc(B.cover)}" alt="${esc(B.name)} 표지" decoding="async" width="1440" height="810"></span>
+          <span class="deck-body">
+            <span class="en" lang="en">MEZZANINE SEOUL · SPACE GUIDE</span>
+            <b>${esc(B.name)}</b>
+            <small>${esc(B.label)} · ${B.pages}쪽 PDF · ${mb(B.size)}</small>
+            <span class="deck-list">${B.contents.map((t) => `<span>${esc(t)}</span>`).join('')}</span>
+          </span>
         </div>
-        ${missing.length ? `<p class="bro-miss">${missing.map((v) => `<a href="/venues/${esc(v.slug)}">${esc(v.name)}</a>`).join(', ')} 소개서는 준비하고 있습니다. 공간 페이지에서 사진과 구성을 먼저 확인하실 수 있습니다.</p>` : ''}
+        <p class="label bro-pages-label">미리 보기</p>
+        <div class="bro-pages">${B.previews.map(([src, cap]) => `<figure><img src="${esc(src)}" alt="${esc(cap)}" loading="lazy" decoding="async" width="800" height="450"><figcaption>${esc(cap)}</figcaption></figure>`).join('')}</div>
         <div class="bro-prev" id="bro-prev" hidden></div>
       </div>
 
       <div class="bro-form">
         <form id="bro" class="form" novalidate>
+          <input type="hidden" name="venues" value="${esc(B.slug)}">
           <div class="grid2">
             <div class="field"><label for="b-name">이름 <em>필수</em></label><input type="text" id="b-name" name="name" maxlength="40" autocomplete="name" required></div>
             <div class="field"><label for="b-company">회사·브랜드</label><input type="text" id="b-company" name="company" maxlength="80" autocomplete="organization"></div>
@@ -66,7 +47,7 @@ export function brochurePage(content, origin, preselect = '') {
           <label class="check agree"><input type="checkbox" name="agree" value="1" required><span>소개서 발송과 대관 상담을 위한 개인정보 수집·이용에 동의합니다. <small>이름, 연락처, 이메일, 회사명, 행사 정보를 소개서 제공과 대관 상담 목적으로만 쓰고, 1년이 지나거나 삭제를 요청하시면 지체 없이 파기합니다.</small></span></label>
           <p class="form-error" id="bro-error" role="alert" hidden></p>
           <button class="btn btn-dark btn-lg btn-block" type="submit" id="bro-submit">소개서 받기</button>
-          <p class="hint">요청하신 소개서는 바로 내려받을 수 있고, 링크는 30일 동안 다시 쓸 수 있습니다.</p>
+          <p class="hint">요청하시면 바로 내려받을 수 있고, 링크는 30일 동안 다시 쓸 수 있습니다.</p>
         </form>
 
         <div id="bro-done" class="done" hidden tabindex="-1">
@@ -83,7 +64,8 @@ export function brochurePage(content, origin, preselect = '') {
     </div></section>`;
   return page({
     content, origin, path: '/brochure', title: '공간소개서 받기', active: 'brochure', scripts: ['/assets/js/brochure.js'], bar: false,
-    description: '메자닌 삼성·북가좌 지점별 베뉴 소개서(PDF). 건물·층별 구성, 도면, 실제 공간 사진, 오시는 길을 담았습니다.',
+    description: '메자닌 서울 공간소개서 2026(PDF). 삼성·북가좌·한남·응암 네 지점의 층별 사진과 도면, 대관 사례, 진행 순서, 오시는 길을 담았습니다.',
+    image: B.cover,
     body,
   });
 }

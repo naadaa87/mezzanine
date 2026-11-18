@@ -1,10 +1,10 @@
 // 관리자 API(추가분): 소개서 요청, 소개서 파일, 입점 문의, 호스트 계정, 정산, KPI
 import { json, fail, readJson, clip, nowIso, kstDate, parseJson, toInt, csv, randomToken, sha256hex, isDate } from './util.js';
-import { createInquiry } from './api-public.js';
+import { createInquiry, siteBrochureResponse } from './api-public.js';
 import { notify } from './notify.js';
 import { brochureKey, fileInfo, storeFile, deleteFile, ensureBrochure, fileResponse, driveFileId } from './files.js';
 import { isMonth, monthRange, thisMonth, addMonths, daysBetween, bookingsOverlapping, venueSummary, monthlyTrend } from './metrics.js';
-import { LEAD_STATUS, PARTNER_STATUS, HOST_STATUS, SETTLE_STATUS, INQUIRY_STATUS } from './seed.js';
+import { LEAD_STATUS, PARTNER_STATUS, HOST_STATUS, SETTLE_STATUS, INQUIRY_STATUS, SITE_BROCHURE } from './seed.js';
 
 const INVITE_DAYS = 14;
 const KST = (col) => `date(${col},'+9 hours')`;
@@ -51,7 +51,7 @@ export async function handleAdminMore({ request, env, ctx, url, p, method, actor
     const where = [];
     const args = [];
     if (q.get('status')) { where.push('status=?'); args.push(q.get('status')); }
-    if (q.get('venue')) { where.push('venues LIKE ?'); args.push(`%"${q.get('venue')}"%`); }
+    if (q.get('venue')) { where.push(`(venues LIKE ? OR venues LIKE '%"all"%')`); args.push(`%"${q.get('venue')}"%`); }
     if (q.get('q')) { where.push('(name LIKE ? OR company LIKE ? OR phone LIKE ? OR email LIKE ? OR code LIKE ?)'); const k = `%${clip(q.get('q'), 40)}%`; args.push(k, k, k, k, k); }
     const rs = await env.DB.prepare(`SELECT * FROM leads ${where.length ? 'WHERE ' + where.join(' AND ') : ''} ORDER BY id DESC LIMIT 500`).bind(...args).all();
     return json({ ok: true, items: rs.results.map((r) => ({ ...r, venues: parseJson(r.venues, []), token: undefined })), statuses: LEAD_STATUS });
@@ -105,7 +105,32 @@ export async function handleAdminMore({ request, env, ctx, url, p, method, actor
       const n = await env.DB.prepare(`SELECT COUNT(*) n, COALESCE(SUM(downloads),0) d FROM leads WHERE venues LIKE ?`).bind(`%"${v.slug}"%`).first();
       items.push({ slug: v.slug, name: v.name, status: v.status, brochure: v.brochure || '', drive_id: driveFileId(v.brochure), label: v.brochure_label || '', file: info || null, leads: n.n, downloads: n.d });
     }
-    return json({ ok: true, items });
+    const sInfo = await fileInfo(env, brochureKey(SITE_BROCHURE.slug));
+    const sn = await env.DB.prepare(`SELECT COUNT(*) n, COALESCE(SUM(downloads),0) d FROM leads WHERE venues LIKE '%"all"%'`).first();
+    const site = { slug: SITE_BROCHURE.slug, name: SITE_BROCHURE.name, label: SITE_BROCHURE.label, pages: SITE_BROCHURE.pages, size: SITE_BROCHURE.size, cover: SITE_BROCHURE.cover, file: sInfo && sInfo.state === 1 ? sInfo : null, leads: sn.n, downloads: sn.d };
+    return json({ ok: true, site, items });
+  }
+
+  // 통합 소개서: 올리면 사이트에 함께 올린 파일 대신 이 파일을 씁니다. 지우면 원래 파일로 돌아갑니다
+  if (p === `/files/brochure/${SITE_BROCHURE.slug}`) {
+    const k = brochureKey(SITE_BROCHURE.slug);
+    if (method === 'PUT') {
+      const buf = new Uint8Array(await request.arrayBuffer());
+      if (buf.byteLength < 1024) return fail(400, '파일이 비어 있습니다.');
+      if (buf.byteLength > 25_000_000) return fail(413, '25MB 이하의 PDF만 올릴 수 있습니다.');
+      if (String.fromCharCode(...buf.slice(0, 5)) !== '%PDF-') return fail(400, 'PDF 파일만 올릴 수 있습니다.');
+      await storeFile(env, k, buf, { name: SITE_BROCHURE.filename, src: 'upload' });
+      return json({ ok: true, file: await fileInfo(env, k) });
+    }
+    if (method === 'DELETE') {
+      await deleteFile(env, k);
+      return json({ ok: true });
+    }
+    if (method === 'GET') {
+      const res = await siteBrochureResponse(env, request, { inline: true });
+      return res || fail(404, '소개서 파일을 찾지 못했습니다.');
+    }
+    return fail(405, '허용되지 않은 요청입니다.');
   }
 
   if ((m = p.match(/^\/files\/brochure\/([a-z0-9-]+)(\/fetch)?$/))) {
@@ -353,7 +378,7 @@ async function kpiCounts(env, content, from, to, venue) {
   const rs = await env.DB.batch([
     env.DB.prepare(`SELECT COALESCE(SUM(n),0) n FROM page_views WHERE day BETWEEN ? AND ?${venue ? ' AND path=?' : ''}`).bind(from, to, ...(venue ? [`/venues/${venue}`] : [])),
     env.DB.prepare(`SELECT COUNT(*) n FROM visitors WHERE day BETWEEN ? AND ?`).bind(from, to),
-    env.DB.prepare(`SELECT COUNT(*) n, COALESCE(SUM(wants_call),0) calls, COALESCE(SUM(downloads>0),0) dl FROM leads WHERE ${KST('created_at')} BETWEEN ? AND ?${venue ? ' AND venues LIKE ?' : ''}`).bind(from, to, ...(venue ? [`%"${venue}"%`] : [])),
+    env.DB.prepare(`SELECT COUNT(*) n, COALESCE(SUM(wants_call),0) calls, COALESCE(SUM(downloads>0),0) dl FROM leads WHERE ${KST('created_at')} BETWEEN ? AND ?${venue ? ` AND (venues LIKE ? OR venues LIKE '%"all"%')` : ''}`).bind(from, to, ...(venue ? [`%"${venue}"%`] : [])),
     env.DB.prepare(`SELECT COUNT(*) n FROM inquiries WHERE kind='rental' AND ${KST('created_at')} BETWEEN ? AND ?${vi}`).bind(from, to, ...va),
     env.DB.prepare(`SELECT COUNT(*) n FROM quotes q JOIN inquiries i ON i.id=q.inquiry_id WHERE q.sent_at IS NOT NULL AND ${KST('q.sent_at')} BETWEEN ? AND ?${venue ? ' AND i.venue=?' : ''}`).bind(from, to, ...va),
     env.DB.prepare(`SELECT COUNT(*) n FROM quotes q JOIN inquiries i ON i.id=q.inquiry_id WHERE q.status='accepted' AND ${KST('q.responded_at')} BETWEEN ? AND ?${venue ? ' AND i.venue=?' : ''}`).bind(from, to, ...va),
@@ -431,7 +456,7 @@ async function kpiDetail(env, content, from, to, venue) {
     monthlyTrend(env, venues, endMonth, 12),
     env.DB.batch([
       env.DB.prepare(`SELECT substr(${KST('created_at')},1,7) m, COUNT(*) n FROM inquiries WHERE kind='rental' AND ${KST('created_at')} BETWEEN ? AND ?${vi} GROUP BY m`).bind(mFrom, mTo, ...va),
-      env.DB.prepare(`SELECT substr(${KST('created_at')},1,7) m, COUNT(*) n FROM leads WHERE ${KST('created_at')} BETWEEN ? AND ?${venue ? ' AND venues LIKE ?' : ''} GROUP BY m`).bind(mFrom, mTo, ...(venue ? [`%"${venue}"%`] : [])),
+      env.DB.prepare(`SELECT substr(${KST('created_at')},1,7) m, COUNT(*) n FROM leads WHERE ${KST('created_at')} BETWEEN ? AND ?${venue ? ` AND (venues LIKE ? OR venues LIKE '%"all"%')` : ''} GROUP BY m`).bind(mFrom, mTo, ...(venue ? [`%"${venue}"%`] : [])),
       env.DB.prepare(`SELECT substr(day,1,7) m, COUNT(*) n FROM visitors WHERE day BETWEEN ? AND ? GROUP BY m`).bind(mFrom, mTo),
     ]),
   ]);

@@ -29,6 +29,31 @@ export const LEAD_STATUS = { new: '새 요청', contacted: '연락함', converte
 export const PARTNER_STATUS = { new: '신규', reviewing: '검토 중', visit: '현장 확인', proposal: '운영 제안', contracted: '계약', declined: '보류·반려' };
 export const HOST_STATUS = { invited: '초대함', active: '사용 중', paused: '일시 중지' };
 export const SETTLE_STATUS = { draft: '작성 중', confirmed: '확정', paid: '지급 완료' };
+// 홈페이지에서 받는 공간소개서(전 지점 통합본). 관리자 → 공간소개서에서 PDF를 올리면 그 파일을 먼저 씁니다.
+export const SITE_BROCHURE = {
+  slug: 'all',
+  name: '메자닌 서울 공간소개서 2026',
+  label: '삼성 · 북가좌 · 한남 · 응암 공간 및 대관 안내',
+  pages: 20,
+  size: 7889746,
+  asset: '/assets/brochure/mezzanine-seoul-space-guide-2026.pdf',
+  cover: '/assets/img/brochure/cover.jpg',
+  previews: [
+    ['/assets/img/brochure/p06.jpg', '지점 한눈에 보기'],
+    ['/assets/img/brochure/p08.jpg', '삼성 A동 사진과 도면'],
+    ['/assets/img/brochure/p11.jpg', '북가좌 A동 층별 안내'],
+  ],
+  contents: [
+    '메자닌 소개, 메자닌을 고르는 이유',
+    '이런 행사에 맞습니다, 지점 한눈에 보기',
+    '삼성·북가좌 층별 사진과 도면, 한남·응암',
+    '대관 사례, 대관 진행 순서',
+    '자주 묻는 질문, 오시는 길과 문의',
+  ],
+  filename: '메자닌 서울 공간소개서 2026.pdf',
+  ascii: 'mezzanine-seoul-space-guide-2026.pdf',
+};
+
 export const PARTNER_MODELS = ['위탁 운영(매출 배분)', '임차 운영(마스터리스)', '공실 기간 단기 활용', '상담 후 결정'];
 
 export const DEFAULTS = {

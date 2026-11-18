@@ -28,6 +28,8 @@ export default {
     const url = new URL(request.url);
     const p = url.pathname.length > 1 ? url.pathname.replace(/\/+$/, '') : '/';
     try {
+      // 소개서 PDF는 연락처를 남긴 뒤 받는 주소로만 내려줍니다
+      if (p.startsWith('/assets/brochure/')) return new Response('Not found', { status: 404, headers: { 'cache-control': 'no-store' } });
       if (p.startsWith('/api/admin')) return await handleAdminApi(request, env, ctx, url);
       if (p.startsWith('/api/host')) return await handleHostApi(request, env, ctx, url);
       // 운영 점검용: 사진·소개서 준비 상태(개인 정보 없음)
@@ -41,6 +43,7 @@ export default {
         return new Response(JSON.stringify({
           ok: true, schema: Number(schema.results[0]?.v || 0), media: media.results[0],
           brochures: Object.fromEntries(files.results.map((f) => [f.k.slice(9), { state: f.state === 1 ? 'ready' : f.state === -1 ? 'failed' : 'saving', size: f.size, from: String(f.src).startsWith('drive:') ? 'drive' : f.src }])),
+          site_brochure: files.results.some((f) => f.k === 'brochure:all' && f.state === 1) ? 'upload' : 'bundled',
         }), { headers: { 'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store' } });
       }
       if (p.startsWith('/api/')) return await handlePublicApi(request, env, ctx, url);

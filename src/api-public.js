@@ -1,12 +1,12 @@
 import { json, fail, readJson, clip, normPhone, isDate, isTime, toInt, nowIso, kstDate, randomCode, randomToken, clientIp, parseJson } from './util.js';
 import { ensureSchema, getContent, logActivity, rateLimit, storeMedia } from './db.js';
-import { ensureBrochure, fileResponse } from './files.js';
+import { ensureBrochure, fileResponse, fileInfo, brochureKey } from './files.js';
 import { sameOrigin } from './auth.js';
 import { notify } from './notify.js';
 import { fetchDriveImage, DRIVE_ID } from './drive.js';
-import { EVENT_TYPES, INQUIRY_STATUS, PARTNER_MODELS } from './seed.js';
+import { EVENT_TYPES, INQUIRY_STATUS, PARTNER_MODELS, SITE_BROCHURE } from './seed.js';
 
-const venueName = (content, slug) => content.venues.find((v) => v.slug === slug)?.name || '지점 미정';
+const venueName = (content, slug) => (slug === 'all' ? '전 지점 통합 소개서' : content.venues.find((v) => v.slug === slug)?.name || '지점 미정');
 
 export async function findOrCreateCustomer(env, { name, company, phone, email }) {
   const pn = normPhone(phone);
@@ -124,9 +124,8 @@ export async function handlePublicApi(request, env, ctx, url) {
     try { b = await readJson(request); } catch (e) { return fail(400, e.message); }
     if (b.hp) return json({ ok: true, code: 'BR-000000-0000', token: '', files: [] });
     if (!b.agree) return fail(400, '개인정보 수집·이용에 동의해 주세요.');
-    const avail = brochureVenues(content);
-    const picked = (Array.isArray(b.venues) ? b.venues : [b.venues]).filter((x) => avail.some((v) => v.slug === x));
-    if (!picked.length) return fail(400, '받으실 지점 소개서를 골라 주세요.');
+    // 지금은 전 지점 통합 소개서 한 권을 드립니다
+    const picked = [SITE_BROCHURE.slug];
     const name = clip(b.name, 40);
     const phone = clip(b.phone, 30);
     const email = clip(b.email, 120);
@@ -147,11 +146,6 @@ export async function handlePublicApi(request, env, ctx, url) {
     ).bind(code, token, JSON.stringify(picked), customerId, name, company, phone, email,
       EVENT_TYPES.includes(b.event_type) ? b.event_type : clip(b.event_type, 30), clip(b.event_month, 20),
       toInt(b.headcount, 0) || null, clip(b.message, 1000), b.wants_call ? 1 : 0, ref.slice(0, 80), now, now).run();
-    // 파일을 미리 받아 둡니다(첫 내려받기를 빠르게)
-    for (const slug of picked) {
-      const v = content.venues.find((x) => x.slug === slug);
-      if (v) ctx.waitUntil(ensureBrochure(env, v).catch(() => {}));
-    }
     notify(env, ctx, content.settings,
       `[메자닌] 소개서 요청 ${code}\n${picked.map((x) => venueName(content, x)).join(', ')} / ${name}${company ? ` (${company})` : ''}${b.wants_call ? ' / 상담 연락 희망' : ''}`);
     return json({ ok: true, code, token, files: brochureLinks(content, picked, code, token) });
@@ -369,9 +363,35 @@ export function brochureVenues(content) {
 
 function brochureLinks(content, slugs, code, token) {
   return slugs
-    .map((slug) => content.venues.find((v) => v.slug === slug))
-    .filter(Boolean)
-    .map((v) => ({ slug: v.slug, name: v.name, label: v.brochure_label || `${v.name} 공간소개서`, url: `/brochure/download/${code}/${token}/${v.slug}` }));
+    .map((slug) => {
+      if (slug === SITE_BROCHURE.slug) {
+        return { slug, name: SITE_BROCHURE.name, title: SITE_BROCHURE.name, label: `${SITE_BROCHURE.label} · ${SITE_BROCHURE.pages}쪽 PDF`, filename: SITE_BROCHURE.filename, url: `/brochure/download/${code}/${token}/${slug}` };
+      }
+      // 예전에 받은 지점별 소개서 링크(30일 안)
+      const v = content.venues.find((x) => x.slug === slug);
+      return v && { slug: v.slug, name: v.name, title: `${v.name} 소개서`, label: v.brochure_label || `${v.name} 공간소개서`, filename: `메자닌_${v.name.replace('메자닌 ', '')}_공간소개서.pdf`, url: `/brochure/download/${code}/${token}/${v.slug}` };
+    })
+    .filter(Boolean);
+}
+
+// 통합 소개서 파일: 관리자가 올린 파일이 있으면 그것을, 없으면 사이트에 함께 올린 파일을 씁니다
+export async function siteBrochureResponse(env, request, { inline = false } = {}) {
+  const info = await fileInfo(env, brochureKey(SITE_BROCHURE.slug));
+  if (info && info.state === 1 && info.parts > 0) {
+    return fileResponse(env, info, SITE_BROCHURE.filename, { inline, ascii: SITE_BROCHURE.ascii });
+  }
+  const res = await env.ASSETS.fetch(new Request(new URL(SITE_BROCHURE.asset, request.url)));
+  if (!res.ok) return null;
+  const ascii = SITE_BROCHURE.ascii;
+  const headers = {
+    'content-type': 'application/pdf',
+    'content-disposition': `${inline ? 'inline' : 'attachment'}; filename="${ascii}"; filename*=UTF-8''${encodeURIComponent(SITE_BROCHURE.filename)}`,
+    'cache-control': 'private, no-store',
+    'x-content-type-options': 'nosniff',
+  };
+  const len = res.headers.get('content-length');
+  if (len) headers['content-length'] = len;
+  return new Response(res.body, { headers });
 }
 
 export async function serveBrochure(request, env, ctx, code, token, slug) {
@@ -381,6 +401,12 @@ export async function serveBrochure(request, env, ctx, code, token, slug) {
   if (!lead || lead.token !== token) return { error: '내려받기 주소가 올바르지 않습니다. 소개서 받기 화면에서 다시 신청해 주세요.' };
   if (Date.now() - Date.parse(lead.created_at) > LINK_DAYS * 86400000)
     return { error: `내려받기 링크는 신청 후 ${LINK_DAYS}일 동안 쓸 수 있습니다. 소개서 받기 화면에서 다시 신청해 주세요.` };
+  if (slug === SITE_BROCHURE.slug) {
+    const res = await siteBrochureResponse(env, request);
+    if (!res) return { error: '소개서 파일을 지금 준비하지 못했습니다. 남겨 주신 연락처로 담당자가 직접 보내 드리겠습니다.', notify: true, lead };
+    await env.DB.prepare('UPDATE leads SET downloads=downloads+1, last_download_at=? WHERE id=?').bind(nowIso(), lead.id).run();
+    return { res };
+  }
   const v = brochureVenues(content).find((x) => x.slug === slug);
   if (!v) return { error: '해당 지점의 소개서를 찾지 못했습니다.' };
   const info = await ensureBrochure(env, v);
