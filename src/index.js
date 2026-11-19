@@ -108,7 +108,7 @@ export default {
 
       if (p === '/robots.txt') {
         const site = (content.settings.site_url || origin).replace(/\/$/, '');
-        return new Response(`User-agent: *\nAllow: /\nDisallow: /admin\nDisallow: /api/\nDisallow: /my\nDisallow: /host/center\nDisallow: /brochure/download\n\nSitemap: ${site}/sitemap.xml\n`, {
+        return new Response(`User-agent: *\nAllow: /\nDisallow: /admin\nDisallow: /api/\nDisallow: /my\nDisallow: /host/center\nDisallow: /brochure/download\nDisallow: /cdn-cgi/\n\nSitemap: ${site}/sitemap.xml\n`, {
           headers: { 'content-type': 'text/plain; charset=utf-8' },
         });
       }
