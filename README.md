@@ -3,6 +3,10 @@
 메자닌 삼성·북가좌·한남·응암(오픈 예정)의 공식 홈페이지와 대관 문의·견적·예약 관리 시스템입니다.
 Cloudflare Workers(정적 파일 + API)와 D1 데이터베이스로 동작하며, 빌드 과정이 없습니다.
 
+- 대표 주소: **https://mezzanine.life** (www.mezzanine.life → 기본 주소로 301 이동, Cloudflare 리디렉션 규칙)
+- 예전 주소 `mezzanine.naadaa87.workers.dev` 로 들어온 페이지 요청은 같은 경로의 대표 주소로 301 이동합니다 (`src/index.js` 의 `MAIN_ORIGIN`). API는 옮기지 않습니다.
+- 도메인 연결은 Cloudflare 대시보드(Workers → mezzanine → 도메인)에서 관리합니다. `wrangler.jsonc` 에는 적지 않았습니다.
+
 ## 구성
 
 | 구분 | 주소 | 내용 |

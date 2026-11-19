@@ -12,6 +12,10 @@ import { homePage, venuesPage, venuePage, casesPage, inquiryPage, myPage, guideP
 
 let lastPending = 0;
 
+/* 대표 주소. 예전 주소(mezzanine.naadaa87.workers.dev)로 들어온 페이지 요청은 여기로 옮깁니다.
+   도메인을 바꾸면 이 값만 고치면 됩니다. */
+const MAIN_ORIGIN = 'https://mezzanine.life';
+
 export default {
   async scheduled(event, env, ctx) {
     ctx.waitUntil(processPendingMedia(env, 12).catch((e) => console.error(e)));
@@ -29,6 +33,12 @@ export default {
   async fetch(request, env, ctx) {
     const url = new URL(request.url);
     const p = url.pathname.length > 1 ? url.pathname.replace(/\/+$/, '') : '/';
+    // 예전 주소로 들어온 페이지·사진·소개서 요청은 같은 경로의 대표 주소로 영구 이동(301)합니다.
+    // 검색엔진이 같은 내용을 두 주소에서 보지 않게 하고, 예전에 보낸 링크도 그대로 열리게 합니다.
+    // API(문의 접수·관리자 기능)는 옮기지 않아, 예전 주소로 열려 있던 화면도 계속 동작합니다.
+    if (url.hostname.endsWith('.workers.dev') && (request.method === 'GET' || request.method === 'HEAD') && !p.startsWith('/api/')) {
+      return new Response(null, { status: 301, headers: { location: MAIN_ORIGIN + url.pathname + url.search, 'cache-control': 'public, max-age=86400' } });
+    }
     try {
       // 소개서 PDF는 연락처를 남긴 뒤 받는 주소로만 내려줍니다
       if (p.startsWith('/assets/brochure/')) return new Response('Not found', { status: 404, headers: { 'cache-control': 'no-store' } });
